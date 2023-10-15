@@ -15,6 +15,14 @@ SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
 
 def auth():
+    """
+    Authorises the app to access the user's Google Calendar
+
+    Args:
+        None
+    Returns:
+        google.oauth2.credentials.Credentials: Google Calendar API credentials
+    """
     creds = None
     if os.path.exists("token.json"):
         creds = Credentials.from_authorized_user_file("token.json", SCOPES)
@@ -32,6 +40,14 @@ def auth():
 
 
 def get_holidays(filepath):
+    """
+    Extracts list of holidays from the pdf
+
+    Args:
+        filepath (str): Path to the pdf file
+    Returns:
+        list: List of holidays in the format YYYY-MM-DD
+    """
     pdf = pdfplumber.open(filepath)
     tables = []
     for i in pdf.pages:
@@ -56,6 +72,15 @@ def get_holidays(filepath):
 
 
 def delete_classes_on_holidays(service, holidays):
+    """
+    Deletes all classes on holidays
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        holidays (list): List of holidays in the format YYYY-MM-DD
+    Returns:
+        None
+    """
     print("Deleting classes on holidays...")
     for i in holidays:
         events = get_events(service, i, i)
@@ -70,6 +95,16 @@ def delete_classes_on_holidays(service, holidays):
 
 
 def get_events(service, start_date, end_date):
+    """
+    Gets all events in the given date range
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        start_date (str): Start date in the format YYYY-MM-DD
+        end_date (str): End date in the format YYYY-MM-DD
+    Returns:
+        list: List of events
+    """
     events_result = (
         service.events()
         .list(
@@ -93,6 +128,23 @@ def del_events(
     onlyColorId=[],
     force=False,
 ):
+    """
+    Deletes all events in the given date range
+    Can exclude events by name or colorId
+    Can delete only events with a particular colorId
+    Can force delete without confirmation
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        start_date (str): Start date in the format YYYY-MM-DD
+        end_date (str): End date in the format YYYY-MM-DD
+        excludeEvent (list): List of event names to exclude
+        excludeColorId (list): List of colorIds to exclude
+        onlyColorId (list): List of colorIds to include
+        force (bool): Whether to force delete without confirmation
+    Returns:
+        None
+    """
     # split date interval into months - [(start_date, end_date), ...)]
     start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d")
     end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d")
@@ -137,6 +189,17 @@ def del_events(
 
 
 def add_classes(service, classes, start_date, end_date):
+    """
+    Adds all classes in the given date range
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        classes (list): List of classes
+        start_date (str): Start date in the format YYYY-MM-DD
+        end_date (str): End date in the format YYYY-MM-DD
+    Returns:
+        None
+    """
     colors_dict = {
         "Tutorial": "9",
         "Lecture": "10",
@@ -199,6 +262,16 @@ def add_classes(service, classes, start_date, end_date):
 
 
 def add_exams(service, exams, exams_start_end_dates: dict):
+    """
+    Adds all exams and deletes classes during exams
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        exams (list): List of exams
+        exams_start_end_dates (dict): Start and end dates of midsems and compres
+    Returns:
+        None
+    """
     for i in exams:
         # Error in Chrono's Data
         if i.split("|")[0] == "CHEM F111":
@@ -234,6 +307,17 @@ def add_exams(service, exams, exams_start_end_dates: dict):
 
 
 def init_classes_exams(service, timetable_ID, start_date, end_date):
+    """
+    Makes lists of classes and exams and calls the respective functions
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        timetable_ID (int): Chrono timetable ID
+        start_date (str): Start date in the format YYYY-MM-DD
+        end_date (str): End date in the format YYYY-MM-DD
+    Returns:
+        None
+    """
     # Found Chrono API endpoints by inspecting network traffic
 
     timetable = json.loads(
@@ -284,6 +368,14 @@ def init_classes_exams(service, timetable_ID, start_date, end_date):
     }
 
     def convert_slots_to_days_hr(slot: str) -> (str, str):
+        """
+        Converts chrono's time slot format to google calendar's format
+
+        Args:
+            slot (str): Slot in the format D:HH
+        Returns:
+            (str, str): (Day, Hour)
+        """
         days = {
             "M": "MO",
             "T": "TU",
@@ -359,6 +451,14 @@ def init_classes_exams(service, timetable_ID, start_date, end_date):
 
 
 def main(creds):
+    """
+    Main function to run the script
+
+    Args:
+        creds (google.oauth2.credentials.Credentials): Google Calendar API credentials
+    Returns:
+        None
+    """
     service = api_build("calendar", "v3", credentials=creds)
 
     start_date = None
