@@ -39,12 +39,15 @@ def auth():
     return creds
 
 
+# region Holidays
+
+
 def get_holidays(filepath):
     """
     Extracts list of holidays from the pdf
 
     Args:
-        filepath (str): Path to the pdf file
+        filepath (str): Path to the holiday calendar pdf file
     Returns:
         list: List of holidays in the format YYYY-MM-DD
     """
@@ -92,6 +95,12 @@ def delete_classes_on_holidays(service, holidays):
                 continue
             service.events().delete(calendarId="primary", eventId=event["id"]).execute()
             print(f"Event deleted: {event['summary']}")
+
+
+# endregion
+
+
+# region Calendar Helper Functions
 
 
 def get_events(service, start_date, end_date):
@@ -145,7 +154,7 @@ def del_events(
     Returns:
         None
     """
-    # split date interval into months - [(start_date, end_date), ...)]
+    # split date interval into months - [(start_date, end_date), ...)] - to avoid exceeding API quota
     start_date = datetime.datetime.strptime(start_date, "%Y-%m-%d")
     end_date = datetime.datetime.strptime(end_date, "%Y-%m-%d")
     intervals = []
@@ -186,6 +195,12 @@ def del_events(
                 continue
             service.events().delete(calendarId="primary", eventId=event["id"]).execute()
             print(f"Event deleted: {event['summary']}")
+
+
+# endregion
+
+
+# region Classes and Exams
 
 
 def add_classes(service, classes, start_date, end_date):
@@ -340,32 +355,7 @@ def init_classes_exams(service, timetable_ID, start_date, end_date):
     ):
         courses_details[i["id"]] = i
 
-    exams_start_end_dates = {
-        "midsem_start_date": min(
-            courses_details.values(),
-            key=lambda x: x["midsemStartTime"]
-            if x["midsemStartTime"]
-            else "9999-12-31T00:00:00Z",
-        )["midsemStartTime"].split("T")[0],
-        "midsem_end_date": max(
-            courses_details.values(),
-            key=lambda x: x["midsemEndTime"]
-            if x["midsemEndTime"]
-            else "0000-01-01T00:00:00Z",
-        )["midsemEndTime"].split("T")[0],
-        "compre_start_date": min(
-            courses_details.values(),
-            key=lambda x: x["compreStartTime"]
-            if x["compreStartTime"]
-            else "9999-12-31T00:00:00Z",
-        )["compreStartTime"].split("T")[0],
-        "compre_end_date": max(
-            courses_details.values(),
-            key=lambda x: x["compreEndTime"]
-            if x["compreEndTime"]
-            else "0000-01-01T00:00:00Z",
-        )["compreEndTime"].split("T")[0],
-    }
+    exams_start_end_dates = get_exams_start_end_dates()
 
     def convert_slots_to_days_hr(slot: str) -> (str, str):
         """
@@ -450,6 +440,165 @@ def init_classes_exams(service, timetable_ID, start_date, end_date):
     add_exams(service, timetable["examTimes"], exams_start_end_dates)
 
 
+# endregion
+
+
+# region Timetable Helper Functions
+
+
+def get_exams_start_end_dates():
+    """
+    Gets the start and end dates of midsems and compres
+
+    Args:
+        None
+    Returns:
+        dict: Start and end dates of midsems and compres
+    """
+    courses_details = {}
+    for i in json.loads(
+        requests.get(f"https://chrono.crux-bphc.com/backend/course").text
+    ):
+        courses_details[i["id"]] = i
+
+    return {
+        "midsem_start_date": min(
+            courses_details.values(),
+            key=lambda x: x["midsemStartTime"]
+            if x["midsemStartTime"]
+            else "9999-12-31T00:00:00Z",
+        )["midsemStartTime"].split("T")[0],
+        "midsem_end_date": max(
+            courses_details.values(),
+            key=lambda x: x["midsemEndTime"]
+            if x["midsemEndTime"]
+            else "0000-01-01T00:00:00Z",
+        )["midsemEndTime"].split("T")[0],
+        "compre_start_date": min(
+            courses_details.values(),
+            key=lambda x: x["compreStartTime"]
+            if x["compreStartTime"]
+            else "9999-12-31T00:00:00Z",
+        )["compreStartTime"].split("T")[0],
+        "compre_end_date": max(
+            courses_details.values(),
+            key=lambda x: x["compreEndTime"]
+            if x["compreEndTime"]
+            else "0000-01-01T00:00:00Z",
+        )["compreEndTime"].split("T")[0],
+    }
+
+
+def get_courses_enrolled(timetable_ID):
+    """
+    Gets all courses enrolled in the given timetable
+
+    Args:
+        timetable_ID (int): Chrono timetable ID
+    Returns:
+        list: List of courses enrolled (course IDs)
+    """
+    timetable = json.loads(
+        requests.get(
+            f"https://chrono.crux-bphc.com/backend/timetable/{timetable_ID}"
+        ).text
+    )
+
+    try:
+        if not timetable["sections"]:
+            print("ID Error. Can't access timetable.")
+            exit()
+    except KeyError:
+        print("ID Error. Can't access timetable.")
+        exit()
+
+    courses_enrolled = []
+    for i in timetable["examTimes"]:
+        courses_enrolled.append(i.split("|")[0])
+
+    return courses_enrolled
+
+
+# endregion
+
+
+# region Exam Rooms
+
+
+def get_room_numbers(filepath, courses_enrolled, student_ID):
+    """
+    Extracts room numbers for enrolled courses from the pdf
+    **For Midsems 2023-24 Sem 1 PDF Only (idk they might just change format randomly)**
+
+    Args:
+        filepath (str): Path to the seating arrangement pdf file
+        courses_enrolled (list): List of courses enrolled (course IDs)
+        student_ID (str): Student ID
+    Returns:
+        dict: Dictionary of course IDs and room numbers
+    """
+    pdf = pdfplumber.open(filepath)
+    tables = []
+    for i in pdf.pages:
+        tables.extend(i.extract_tables())  # Extract all tables from the pdf
+
+    room_numbers = {}
+
+    # Parsing the tables of the pdf
+    cur_course = ""
+    for i in tables:
+        for j in i:
+            if j[0].startswith("SEATING") or j[0].startswith("COURSE"):  # Skip headers
+                continue
+            if j[0] in courses_enrolled:  # If course is enrolled
+                cur_course = j[0]
+            elif j[0] != "":  # For courses with multiple rooms
+                cur_course = ""
+            if cur_course:
+                if j[4] == "ALL THE STUDENTS":
+                    room_numbers[cur_course] = j[3]
+                    continue
+                else:
+                    ids = j[4].split(" to ")
+                    if ids[0] <= student_ID <= ids[1]:
+                        room_numbers[cur_course] = j[3]
+                        continue
+
+    return room_numbers
+
+
+def add_exam_rooms(service, room_numbers, examtype):
+    """
+    Adds room numbers to the already created exam events
+
+    Args:
+        service (googleapiclient.discovery.Resource): Google Calendar API service
+        room_numbers (dict): Dictionary of course IDs and room numbers
+        examtype (str): midsem or compre
+    Returns:
+        None
+    """
+    exams_start_end_dates = get_exams_start_end_dates()
+    events = get_events(
+        service,
+        exams_start_end_dates[f"{examtype}_start_date"],
+        exams_start_end_dates[f"{examtype}_end_date"],
+    )
+    for event in events:
+        if event["summary"] in room_numbers:
+            event["location"] = room_numbers[event["summary"]]
+            service.events().update(
+                calendarId="primary", eventId=event["id"], body=event
+            ).execute()
+            print(f"Room number added to {event['summary']}")
+        else:
+            print(f"Room number not found for {event['summary']}")
+    print("Rooms Added")
+
+
+# endregion
+
+
 def main(creds):
     """
     Main function to run the script
@@ -486,17 +635,32 @@ def main(creds):
             print("\nIncorrect date format, should be YYYY-MM-DD")
             continue
 
-    # timetable_ID = int(input("Enter timetable ID: "))
+    timetable_ID = int(input("Enter timetable ID: "))
 
-    # init_classes_exams(service, timetable_ID, start_date, end_date)
-    # delete_classes_on_holidays(service, get_holidays("BPHC_Calendar_23_24.pdf"))
+    student_ID = None
+    while True:
+        student_ID = input("Enter your Student ID: ").strip().upper()
+        if (
+            len(student_ID) != 13
+            or student_ID[:4] not in ["2018", "2019", "2020", "2021", "2022", "2023"]
+            or not student_ID[8:12].isdigit()
+            or student_ID[-1] != "H"
+        ):
+            print("Incorrect Student ID")
+            continue
+        break
 
-    del_events(
+    init_classes_exams(service, timetable_ID, start_date, end_date)
+    delete_classes_on_holidays(service, get_holidays("BPHC_Calendar_23_24.pdf"))
+
+    add_exam_rooms(
         service,
-        start_date,
-        end_date,
-        excludeColorId=["5", "6", "9", "10", "11"],
-        force=True,
+        get_room_numbers(
+            "Midsem_Seating_Sem1.pdf",
+            get_courses_enrolled(timetable_ID),
+            student_ID,
+        ),
+        "midsem",
     )
 
 
