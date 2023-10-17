@@ -1,6 +1,7 @@
 import json
 import os
 import threading
+import webbrowser
 
 import requests
 from auth import APP_URL, BASE_API_URL, SERVER_PORT, app, get_access_token
@@ -33,6 +34,7 @@ def authorise():
     """
     Gets the user to authorize this app.
     """
+    webbrowser.open(f"{APP_URL}:{SERVER_PORT}/auth")
     print(
         f"Click the following link to authorize this app:\n{APP_URL}:{SERVER_PORT}/auth"
     )

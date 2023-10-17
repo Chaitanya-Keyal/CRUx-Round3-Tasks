@@ -45,7 +45,6 @@ def get_auth_code():
         + f"&redirect_uri={redirect_uri}"
         + f"&scope={scope}"
         + f"&state={state}"
-        + "&show_dialog=true"
     )
 
 
