@@ -1,6 +1,7 @@
 import json
 import logging
 import secrets
+import threading
 
 import requests
 from flask import Flask, cli, redirect, request
@@ -27,6 +28,8 @@ APP_URL, SERVER_PORT = "http://localhost", 8888
 
 state = secrets.token_hex(16)
 
+auth_event = None
+
 
 @app.route("/auth", methods=["GET"])
 def get_auth_code():
@@ -51,7 +54,7 @@ def get_auth_code():
 @app.route("/callback", methods=["GET"])
 def callback():
     """
-    Stores authorization code in JSON file.
+    Stores token in JSON file.
     """
     recv_state = request.args.get("state")
     if not recv_state:
@@ -76,10 +79,20 @@ def callback():
         token = r.json()
         with open("spotify/token.json", "w") as f:
             json.dump(token, f)
+        auth_event.set()
         return "Authorisation Successful. You can close this tab and return to the application."
     except ValueError:
         error = request.args.get("error")
         raise Exception(f"Error: {error}")
+
+
+def start_auth_listener(event: threading.Event):
+    """
+    Starts Flask server to listen for auth code.
+    """
+    global auth_event
+    auth_event = event
+    app.run(host=APP_URL.removeprefix("http://"), port=SERVER_PORT)
 
 
 def get_access_token():

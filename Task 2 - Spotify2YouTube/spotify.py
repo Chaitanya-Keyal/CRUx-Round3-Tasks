@@ -4,7 +4,13 @@ import threading
 import webbrowser
 
 import requests
-from auth import APP_URL, BASE_API_URL, SERVER_PORT, app, get_access_token
+from auth import (
+    APP_URL,
+    BASE_API_URL,
+    SERVER_PORT,
+    get_access_token,
+    start_auth_listener,
+)
 
 
 def pretty_print(json_object):
@@ -38,17 +44,12 @@ def authorise():
     print(
         f"Click the following link to authorize this app:\n{APP_URL}:{SERVER_PORT}/auth"
     )
-
-    thread = threading.Thread(
-        target=app.run,
-        kwargs={"host": APP_URL.removeprefix("http://"), "port": SERVER_PORT},
-        daemon=True,
-    )
+    event = threading.Event()
+    thread = threading.Thread(target=start_auth_listener, args=(event,), daemon=True)
     thread.start()
-
-    # Waiting for user to authorize app
-    while not os.path.exists("spotify/token.json"):
-        pass
+    event.wait(timeout=120)
+    if not event.is_set():
+        raise Exception("Authorisation timed out.")
 
 
 def main():
