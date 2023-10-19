@@ -51,34 +51,35 @@ def get_user_details(access_token):
     return user
 
 
-def get_top_artists(access_token, num_artists=10, time_range="long_term"):
+def get_top(access_token, top_type, num=10, time_range="long_term"):
     """
-    Get the user's top artists from Spotify.
+    Get the user's top artists or tracks from Spotify.
 
     Args:
         access_token (str): Access token
-        num_artists (int): Number of artists to return
-        time_range (str): Time range of top artists
+        top_type (str): "artists" or "tracks"
+        num (int): Number of artists or tracks to get
+        time_range (str): Time range to calculate top artists or tracks for
             - long_term (several years of data)
             - medium_term (approximately last 6 months)
             - short_term (approximately last 4 weeks)
     Returns:
-        artists (list): List of artists
+        items (list): List of top artists or tracks
     """
     r = spotify_api_request(
-        BASE_API_URL + "/v1/me/top/artists",
+        BASE_API_URL + "/v1/me/top/" + top_type,
         access_token,
-        params={"limit": num_artists, "time_range": time_range},
+        params={"limit": num, "time_range": time_range},
     )
-    artists = r["items"]
-    while len(artists) < num_artists:
+    items = r["items"]
+    while len(items) < num:
         r = spotify_api_request(
             r["next"],
             access_token,
-            params={"limit": num_artists - len(artists), "time_range": time_range},
+            params={"limit": num - len(items), "time_range": time_range},
         )
-        artists.extend(r["items"])
-    return artists
+        items.extend(r["items"])
+    return items
 
 
 def authorise():
@@ -103,13 +104,16 @@ def main():
 
     user = get_user_details(get_access_token())
     print(f"Welcome, {user['display_name']}!")
-    artists = get_top_artists(get_access_token(), 15, "long_term")
-    print("Your top artists are:")
+
+    tracks = get_top(get_access_token(), "tracks", 15, "medium_term")
+    print("\nYour top tracks are:")
+    for track in tracks:
+        print(f"{track['name']} by {track['artists'][0]['name']}")
+
+    artists = get_top(get_access_token(), "artists", 15, "long_term")
+    print("\nYour top artists are:")
     for artist in artists:
-        print(
-            f"{artist['name']}"
-            + (f" ({artist['genres'][0]})" if artist["genres"] else "")
-        )
+        print(f"{artist['name']}")
 
 
 if __name__ == "__main__":
