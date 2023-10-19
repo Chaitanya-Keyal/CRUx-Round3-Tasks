@@ -5,6 +5,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as api_build
+from googleapiclient.errors import HttpError
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
@@ -45,30 +46,50 @@ def auth():
 # f.close()
 
 
-def main(creds):
+def add_subscription(youtube, channel_name):
     """
-    Gets the user's subscriptions.
+    Adds a subscription to the user's YouTube account.
 
     Args:
-        creds (google.oauth2.credentials.Credentials): YouTube API credentials
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+        channel_id (str): Channel ID
     Returns:
         None
     """
-    youtube = api_build("youtube", "v3", credentials=creds)
-    request = youtube.subscriptions().list(part="snippet", mine=True)
+    print(f"Searching for {channel_name}...")
+    request = youtube.search().list(
+        part="snippet",
+        maxResults=1,
+        q=channel_name,
+        type="channel",
+    )
     response = request.execute()
-
-    for item in response["items"]:
-        print(item["snippet"]["title"])
-
-    # next page
-    while "nextPageToken" in response:
-        request = youtube.subscriptions().list(
-            part="snippet", mine=True, pageToken=response["nextPageToken"]
-        )
+    channel_id = response["items"][0]["snippet"]["channelId"]
+    print(f"Found {channel_name}! Adding subscription...")
+    request = youtube.subscriptions().insert(
+        part="snippet",
+        body={
+            "snippet": {
+                "resourceId": {
+                    "kind": "youtube#channel",
+                    "channelId": channel_id,
+                }
+            }
+        },
+    )
+    try:
         response = request.execute()
-        for item in response["items"]:
-            print(item["snippet"]["title"])
+        print(f"Successfully added {channel_name}!")
+    except HttpError as e:
+        print(e.reason)
+
+
+def main(creds):
+    youtube = api_build("youtube", "v3", credentials=creds)
+
+    list_of_artists = ["Ed Sheeran"]
+    for artist in list_of_artists:
+        add_subscription(youtube, artist)
 
 
 if __name__ == "__main__":
