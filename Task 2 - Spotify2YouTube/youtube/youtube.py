@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 
 import httplib2
 from google.auth.transport.requests import Request
@@ -8,6 +9,9 @@ from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as api_build
 from googleapiclient.errors import HttpError
+
+sys.path.append(os.curdir)
+from util.fuzzy_playlist import search_playlist
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
@@ -59,7 +63,13 @@ def youtube_api_request(request, params):
     try:
         return request(**params).execute(http=http)
     except HttpError as e:
-        print(e.reason)
+        if e.reason == "Channel not found.":
+            print(
+                "Channel not found. You need to create a channel on your account."
+                + "\nTry creating a public playlist on your account and try again."
+            )
+        else:
+            print(e.reason)
 
 
 def add_subscription(youtube, channel_name):
@@ -102,12 +112,88 @@ def add_subscription(youtube, channel_name):
     )
 
 
+def get_playlists(youtube):
+    """
+    Gets the user's playlists.
+
+    Args:
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+    Returns:
+        list: User's playlists
+    """
+    playlists_response = youtube_api_request(
+        youtube.playlists().list,
+        {
+            "part": "snippet",
+            "mine": True,
+            "maxResults": 50,
+        },
+    )
+    playlists = []
+    for playlist in playlists_response["items"]:
+        playlists.append(
+            {
+                "name": playlist["snippet"]["title"],
+                "id": playlist["id"],
+            }
+        )
+    return playlists
+
+
+def get_playlist_items(youtube, playlist_id):
+    """
+    Gets the items in a playlist.
+
+    Args:
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+        playlist_id (str): Playlist ID
+    Returns:
+        list: Playlist items
+    """
+    playlist_items_response = youtube_api_request(
+        youtube.playlistItems().list,
+        {
+            "part": "snippet,contentDetails",
+            "playlistId": playlist_id,
+            "maxResults": 50,
+        },
+    )
+    videos = []
+    for video in playlist_items_response["items"]:
+        videos.append(
+            {
+                "title": video["snippet"]["title"],
+                "id": video["contentDetails"]["videoId"],
+            }
+        )
+    while playlist_items_response.get("nextPageToken"):
+        playlist_items_response = youtube_api_request(
+            youtube.playlistItems().list,
+            {
+                "part": "snippet,contentDetails",
+                "playlistId": playlist_id,
+                "maxResults": 50,
+                "pageToken": playlist_items_response["nextPageToken"],
+            },
+        )
+        for video in playlist_items_response["items"]:
+            videos.append(
+                {
+                    "title": video["snippet"]["title"],
+                    "id": video["contentDetails"]["videoId"],
+                }
+            )
+    return videos
+
+
 def main(creds):
     youtube = api_build("youtube", "v3", credentials=creds)
 
-    list_of_artists = []
-    for artist in list_of_artists:
-        add_subscription(youtube, artist)
+    playlists = get_playlists(youtube)
+    search_response = search_playlist(playlists)
+    if search_response:
+        videos = get_playlist_items(youtube, search_response["id"])
+        print(videos)
 
 
 if __name__ == "__main__":
