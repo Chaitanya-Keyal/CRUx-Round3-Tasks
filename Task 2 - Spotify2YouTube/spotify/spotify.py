@@ -271,6 +271,23 @@ def search_song(access_token):
             print("\nInvalid choice")
 
 
+def get_song_details(access_token, song_id):
+    """
+    Get the details of a song on Spotify.
+
+    Args:
+        access_token (str): Access token
+        song_id (str): Song ID
+    Returns:
+        song (dict): Song details
+    """
+    song = spotify_api_request(
+        BASE_API_URL + f"/v1/tracks/{song_id}",
+        access_token,
+    )
+    return song
+
+
 def authorise():
     """
     Gets the user to authorize this app.

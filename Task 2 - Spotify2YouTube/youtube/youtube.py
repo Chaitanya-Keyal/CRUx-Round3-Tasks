@@ -1,4 +1,3 @@
-import json
 import os
 import sys
 
@@ -196,17 +195,105 @@ def get_playlist_items(youtube, playlist_id, limit=10):
     return videos
 
 
+def create_playlist(youtube, name, public=True):
+    """
+    Creates a playlist.
+
+    Args:
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+        name (str): Name of the playlist
+        public (bool): Whether the playlist is public
+    Returns:
+        str: Playlist ID
+    """
+    playlist_response = youtube_api_request(
+        youtube.playlists().insert,
+        {
+            "part": "snippet,status",
+            "body": {
+                "snippet": {
+                    "title": name,
+                },
+                "status": {
+                    "privacyStatus": "public" if public else "private",
+                },
+            },
+        },
+    )
+    return playlist_response["id"]
+
+
+def add_video_to_playlist(youtube, playlist_id, video_id):
+    """
+    Adds a video to a playlist.
+
+    Args:
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+        playlist_id (str): Playlist ID
+        video_id (str): Video ID
+    Returns:
+        None
+    """
+    youtube_api_request(
+        youtube.playlistItems().insert,
+        {
+            "part": "snippet",
+            "body": {
+                "snippet": {
+                    "playlistId": playlist_id,
+                    "resourceId": {
+                        "kind": "youtube#video",
+                        "videoId": video_id,
+                    },
+                }
+            },
+        },
+    )
+
+
 # endregion
+
+
+def get_video_id(youtube, name, artist):
+    """
+    Gets the ID of a video on YouTube.
+
+    Args:
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+        name (str): Name of the song
+        artist (str): Name of the artist
+    Returns:
+        str: Video ID
+    """
+    search_response = youtube_api_request(
+        youtube.search().list,
+        {
+            "part": "snippet",
+            "q": f"{name} {artist}",
+            "type": "video",
+            "maxResults": 1,
+            "videoCategoryId": "10",
+        },
+    )
+    return search_response["items"][0]["id"]["videoId"]
 
 
 def main(creds):
     youtube = api_build("youtube", "v3", credentials=creds)
 
-    playlists = get_playlists(youtube)
-    search_response = search_playlist(playlists)
-    if search_response:
-        videos = get_playlist_items(youtube, search_response["id"])
-        print(videos)
+    # playlists = get_playlists(youtube)
+    # search_response = search_playlist(playlists)
+    # if search_response:
+    #     videos = get_playlist_items(youtube, search_response["id"])
+    #     print(videos)
+    # else:
+    #     print("No playlists found.")
+
+    created = create_playlist(youtube, "Test Playlist", public=False)
+    print(created)
+    video_id = get_video_id(youtube, "Overdrive", "Post Malone")
+    print(video_id)
+    add_video_to_playlist(youtube, created, video_id)
 
 
 if __name__ == "__main__":
