@@ -50,6 +50,9 @@ def auth():
 http = AuthorizedHttp(auth(), http=httplib2.Http(cache=".cache"))
 
 
+# region Utility functions
+
+
 def youtube_api_request(request, params):
     """
     Makes a request to the YouTube API.
@@ -70,6 +73,9 @@ def youtube_api_request(request, params):
             )
         else:
             print(e.reason)
+
+
+# endregion
 
 
 def add_subscription(youtube, channel_name):
@@ -110,6 +116,9 @@ def add_subscription(youtube, channel_name):
             },
         },
     )
+
+
+# region Playlist functions
 
 
 def get_playlists(youtube):
@@ -185,6 +194,9 @@ def get_playlist_items(youtube, playlist_id, limit=10):
                 }
             )
     return videos
+
+
+# endregion
 
 
 def main(creds):

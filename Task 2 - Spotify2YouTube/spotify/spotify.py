@@ -16,12 +16,14 @@ from auth import (
 sys.path.append(os.curdir)
 from util.fuzzy_playlist import search_playlist
 
+# region Utility functions
+
 
 def pretty_print(json_object):
     print(json.dumps(json_object, indent=4))
 
 
-def spotify_api_request(url, access_token, params=None):
+def spotify_api_request(url, access_token, params=None, method="GET", data=None):
     """
     Make an API request to Spotify.
 
@@ -32,14 +34,24 @@ def spotify_api_request(url, access_token, params=None):
     Returns:
         json (dict): JSON response
     """
-    r = requests.get(
+    methods = {
+        "GET": requests.get,
+        "POST": requests.post,
+        "PUT": requests.put,
+        "DELETE": requests.delete,
+    }
+    r = methods[method](
         url,
         headers={"Authorization": f"Bearer {access_token}"},
         params=params,
+        data=data,
     )
-    if r.status_code != 200:
+    if r.status_code not in [200, 201]:
         raise Exception(f"Status code: {r.status_code} {r.text}")
     return r.json()
+
+
+# endregion
 
 
 def get_user_details(access_token):
@@ -86,6 +98,9 @@ def get_top(access_token, top_type, num=10, time_range="long_term"):
     return items
 
 
+# region Playlist functions
+
+
 def get_playlists(access_token):
     """
     Get the user's playlists from Spotify.
@@ -129,6 +144,81 @@ def get_playlist_items(access_token, playlist_id, limit=10):
         )
         items.extend(r["items"])
     return items
+
+
+def create_playlist(access_token, user_id, name, public=True):
+    """
+    Create a playlist on Spotify.
+
+    Args:
+        access_token (str): Access token
+        user_id (str): User ID
+        name (str): Playlist name
+        public (bool): Whether the playlist is public
+    Returns:
+        playlist (dict): Playlist details
+    """
+    playlist = spotify_api_request(
+        BASE_API_URL + f"/v1/users/{user_id}/playlists",
+        access_token,
+        method="POST",
+        data=json.dumps(
+            {
+                "name": name,
+                "public": public,
+            }
+        ),
+    )
+    return playlist
+
+
+def add_to_playlist(access_token, playlist_id, uris):
+    """
+    Add tracks to a playlist on Spotify.
+
+    Args:
+        access_token (str): Access token
+        playlist_id (str): Playlist ID
+        uris (list): List of track URIs
+    Returns:
+        None
+    """
+    spotify_api_request(
+        BASE_API_URL + f"/v1/playlists/{playlist_id}/tracks",
+        access_token,
+        method="POST",
+        data=json.dumps(
+            {
+                "uris": uris,
+            }
+        ),
+    )
+
+
+# endregion
+
+
+def get_song_uri(access_token, name, artist):
+    """
+    Get the URI of a song on Spotify.
+
+    Args:
+        access_token (str): Access token
+        name (str): Song name
+        artist (str): Artist name
+    Returns:
+        uri (str): Song URI
+    """
+    r = spotify_api_request(
+        BASE_API_URL + "/v1/search",
+        access_token,
+        params={
+            "q": f"{name} {artist}",
+            "type": "track",
+            "limit": 1,
+        },
+    )
+    return r["tracks"]["items"][0]["uri"]
 
 
 def search_song(access_token):
@@ -214,23 +304,39 @@ def main():
     # for artist in artists:
     #     print(f"{artist['name']}")
 
-    searched_playlist = search_playlist(get_playlists(get_access_token()))
-    if searched_playlist:
-        print(f"\nYou chose: {searched_playlist['name']}")
-        playlist_items = get_playlist_items(
-            get_access_token(), searched_playlist["id"], 10
-        )
-        print("\nYour playlist contains:")
-        for item in playlist_items:
-            print(f"{item['track']['name']} by {item['track']['artists'][0]['name']}")
-    else:
-        print("\nNo playlist selected")
-
-    # searched_song = search_song(get_access_token())
-    # if searched_song:
-    #     print(
-    #         f"\nYou chose {searched_song['name']} by {searched_song['artists'][0]['name']}"
+    # searched_playlist = search_playlist(get_playlists(get_access_token()))
+    # if searched_playlist:
+    #     print(f"\nYou chose: {searched_playlist['name']}")
+    #     playlist_items = get_playlist_items(
+    #         get_access_token(), searched_playlist["id"], 10
     #     )
+    #     print("\nYour playlist contains:")
+    #     for item in playlist_items:
+    #         print(f"{item['track']['name']} by {item['track']['artists'][0]['name']}")
+    # else:
+    #     print("\nNo playlist selected")
+
+    searched_song = search_song(get_access_token())
+    if searched_song:
+        print(
+            f"\nYou chose {searched_song['name']} by {searched_song['artists'][0]['name']}"
+        )
+
+    created_playlist = create_playlist(
+        get_access_token(), user["id"], "Test Playlist", False
+    )
+    print(f"\nCreated playlist: {created_playlist['name']}")
+    add_to_playlist(
+        get_access_token(),
+        created_playlist["id"],
+        [
+            get_song_uri(
+                get_access_token(),
+                searched_song["name"],
+                searched_song["artists"][0]["name"],
+            )
+        ],
+    )
 
 
 if __name__ == "__main__":
