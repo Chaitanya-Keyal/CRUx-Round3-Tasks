@@ -3,6 +3,7 @@ import os
 import threading
 import webbrowser
 
+import rapidfuzz
 import requests
 from auth import (
     APP_URL,
@@ -82,6 +83,89 @@ def get_top(access_token, top_type, num=10, time_range="long_term"):
     return items
 
 
+def get_playlists(access_token):
+    """
+    Get the user's playlists from Spotify.
+
+    Args:
+        access_token (str): Access token
+    Returns:
+        playlists (list): List of playlists
+    """
+    r = spotify_api_request(BASE_API_URL + "/v1/me/playlists", access_token)
+    playlists = r["items"]
+    while r["next"]:
+        r = spotify_api_request(r["next"], access_token)
+        playlists.extend(r["items"])
+
+    return playlists
+
+
+def search_playlist(access_token):
+    """
+    Search the user's playlists for a playlist using fuzzy matching.
+
+    Args:
+        access_token (str): Access token
+    Returns:
+        playlist (dict): Playlist details
+    """
+
+    playlists_response = get_playlists(access_token)
+
+    playlists_names = [playlist["name"] for playlist in playlists_response]
+
+    playlists_names_lower = [name.lower() for name in playlists_names]
+
+    def fuzzy_matched_playlists(search_query):
+        """
+        Get matched playlists using fuzzy matching.
+
+        Args:
+            search_query (str): Search query
+        Returns:
+            matched_playlists (list): List of matched playlists [(playlist name, score, index)]
+        """
+        matched_playlists = rapidfuzz.process.extract(
+            search_query.lower(),
+            playlists_names_lower,
+            scorer=rapidfuzz.fuzz.WRatio,
+            limit=10,
+            score_cutoff=50,
+        )
+
+        return [
+            (playlists_names[index], str(round(score, 2)) + "%", index)
+            for playlist, score, index in matched_playlists
+        ]
+
+    matched_playlists = fuzzy_matched_playlists(input("\nSearch for a playlist: "))
+    while True:
+        if not matched_playlists:
+            print("No results found")
+            matched_playlists = fuzzy_matched_playlists(input("\nSearch again: "))
+            continue
+        print("\nSearch results:")
+        c = 1
+        for playlist, score, id in matched_playlists:
+            print(f"{c}. {playlist} ({score})")
+            c += 1
+        print(f"{c}. Search again")
+        print(f"{c + 1}. Exit")
+
+        choice = input("\nChoose a playlist: ")
+        if choice == str(c + 1):
+            return None
+        elif choice == str(c):
+            matched_playlists = fuzzy_matched_playlists(
+                input("\nSearch for a playlist: ")
+            )
+        elif "1" <= choice <= str(c - 1):
+            return playlists_response[matched_playlists[int(choice) - 1][2]]
+        else:
+            print("\nInvalid choice")
+
+
 def authorise():
     """
     Gets the user to authorize this app.
@@ -105,15 +189,19 @@ def main():
     user = get_user_details(get_access_token())
     print(f"Welcome, {user['display_name']}!")
 
-    tracks = get_top(get_access_token(), "tracks", 15, "medium_term")
-    print("\nYour top tracks are:")
-    for track in tracks:
-        print(f"{track['name']} by {track['artists'][0]['name']}")
+    # tracks = get_top(get_access_token(), "tracks", 15, "medium_term")
+    # print("\nYour top tracks are:")
+    # for track in tracks:
+    #     print(f"{track['name']} by {track['artists'][0]['name']}")
 
-    artists = get_top(get_access_token(), "artists", 15, "long_term")
-    print("\nYour top artists are:")
-    for artist in artists:
-        print(f"{artist['name']}")
+    # artists = get_top(get_access_token(), "artists", 15, "long_term")
+    # print("\nYour top artists are:")
+    # for artist in artists:
+    #     print(f"{artist['name']}")
+
+    searched_playlist = search_playlist(get_access_token())
+    if searched_playlist:
+        print(f"\nYou chose: {searched_playlist['name']}")
 
 
 if __name__ == "__main__":
