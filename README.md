@@ -12,6 +12,7 @@ Helps Spotify users to transfer their music library to YouTube.
 A news app that aggregates news from multiple sources and displays them in a single feed.
 
 ### Usage:
+- Python 3.9+ is required to run the tasks. (3.11 is recommended)
 - Each task is in a separate directory.
 - `cd` into the directory containing the task you want to run.
 - Install the required packages using `pip install -r requirements.txt`

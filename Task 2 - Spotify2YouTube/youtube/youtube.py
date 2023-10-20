@@ -278,6 +278,25 @@ def get_video_id(youtube, name, artist):
     return search_response["items"][0]["id"]["videoId"]
 
 
+def like_video(youtube, video_id):
+    """
+    Likes a video on YouTube.
+
+    Args:
+        youtube (googleapiclient.discovery.Resource): YouTube API resource
+        video_id (str): Video ID
+    Returns:
+        None
+    """
+    youtube_api_request(
+        youtube.videos().rate,
+        {
+            "id": video_id,
+            "rating": "like",
+        },
+    )
+
+
 def main(creds):
     youtube = api_build("youtube", "v3", credentials=creds)
 

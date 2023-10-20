@@ -1,3 +1,4 @@
+import datetime
 import json
 import os
 import sys
@@ -198,6 +199,52 @@ def add_to_playlist(access_token, playlist_id, uris):
 # endregion
 
 
+def get_new_liked_songs(access_token):
+    """
+    Get the user's new liked songs from Spotify.
+    Last checked is stored in liked_times.json
+    For new users, last checked is 7 days ago
+
+    Args:
+        access_token (str): Access token
+    Returns:
+        songs (list): List of songs [(name, artist)]
+    """
+    print("\nGetting new liked songs...")
+    now = datetime.datetime.now(tz=datetime.timezone.utc)
+    if os.path.exists("spotify/liked_timestamps.json"):
+        with open("spotify/liked_timestamps.json", "r") as f:
+            last_checked = json.load(f)[get_user_details(access_token)["id"]]
+    else:
+        with open("spotify/liked_timestamps.json", "w") as f:
+            json.dump({}, f)
+        last_checked = (now - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    r = spotify_api_request(
+        BASE_API_URL + "/v1/me/tracks",
+        access_token,
+    )
+    songs = []
+    for item in r["items"]:
+        if item["added_at"] > last_checked:
+            songs.append((item["track"]["name"], item["track"]["artists"][0]["name"]))
+    if r["next"]:
+        while r["next"]:
+            r = spotify_api_request(r["next"], access_token)
+            for item in r["items"]:
+                if item["added_at"] > last_checked:
+                    songs.append(
+                        (item["track"]["name"], item["track"]["artists"][0]["name"])
+                    )
+    with open("spotify/liked_timestamps.json", "r+") as f:
+        d = json.load(f)
+        d[get_user_details(access_token)["id"]] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+        f.seek(0)
+        f.truncate()
+        json.dump(d, f)
+    return songs
+
+
 def get_song_uri(access_token, name, artist):
     """
     Get the URI of a song on Spotify.
@@ -333,27 +380,28 @@ def main():
     # else:
     #     print("\nNo playlist selected")
 
-    searched_song = search_song(get_access_token())
-    if searched_song:
-        print(
-            f"\nYou chose {searched_song['name']} by {searched_song['artists'][0]['name']}"
-        )
+    # searched_song = search_song(get_access_token())
+    # if searched_song:
+    #     print(
+    #         f"\nYou chose {searched_song['name']} by {searched_song['artists'][0]['name']}"
+    #     )
 
-    created_playlist = create_playlist(
-        get_access_token(), user["id"], "Test Playlist", False
-    )
-    print(f"\nCreated playlist: {created_playlist['name']}")
-    add_to_playlist(
-        get_access_token(),
-        created_playlist["id"],
-        [
-            get_song_uri(
-                get_access_token(),
-                searched_song["name"],
-                searched_song["artists"][0]["name"],
-            )
-        ],
-    )
+    # created_playlist = create_playlist(
+    #     get_access_token(), user["id"], "Test Playlist", False
+    # )
+    # print(f"\nCreated playlist: {created_playlist['name']}")
+    # add_to_playlist(
+    #     get_access_token(),
+    #     created_playlist["id"],
+    #     [
+    #         get_song_uri(
+    #             get_access_token(),
+    #             searched_song["name"],
+    #             searched_song["artists"][0]["name"],
+    #         )
+    #     ],
+    # )
+    print(get_new_liked_songs(get_access_token()))
 
 
 if __name__ == "__main__":
