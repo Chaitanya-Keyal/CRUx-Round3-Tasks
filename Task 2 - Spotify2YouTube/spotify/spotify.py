@@ -150,7 +150,7 @@ def search_playlist(access_token):
         for playlist, score, id in matched_playlists:
             print(f"{c}. {playlist} ({score})")
             c += 1
-        print(f"{c}. Search again")
+        print(f"\n{c}. Search again")
         print(f"{c + 1}. Exit")
 
         choice = input("\nChoose a playlist: ")
@@ -162,6 +162,56 @@ def search_playlist(access_token):
             )
         elif "1" <= choice <= str(c - 1):
             return playlists_response[matched_playlists[int(choice) - 1][2]]
+        else:
+            print("\nInvalid choice")
+
+
+def search_song(access_token):
+    """
+    Search for a song on spotify
+
+    Args:
+        access_token (str): Access token
+    Returns:
+        song (dict): Song details
+    """
+
+    def request_songs(search_query):
+        """
+        Get songs from Spotify.
+        """
+        r = spotify_api_request(
+            BASE_API_URL + "/v1/search",
+            access_token,
+            params={
+                "q": search_query,
+                "type": "track",
+                "limit": 10,
+            },
+        )
+        return r["tracks"]["items"]
+
+    songs = request_songs(input("\nSearch for a song: "))
+    while True:
+        if not songs:
+            print("No results found")
+            songs = request_songs(input("\nSearch again: "))
+            continue
+        print("\nSearch results:")
+        c = 1
+        for song in songs:
+            print(f"{c}. {song['name']} by {song['artists'][0]['name']}")
+            c += 1
+        print(f"\n{c}. Search again")
+        print(f"{c + 1}. Exit")
+
+        choice = input("\nChoose a song: ")
+        if choice == str(c + 1):
+            return None
+        elif choice == str(c):
+            songs = request_songs(input("\nSearch for a song: "))
+        elif "1" <= choice <= str(c - 1):
+            return songs[int(choice) - 1]
         else:
             print("\nInvalid choice")
 
@@ -199,9 +249,15 @@ def main():
     # for artist in artists:
     #     print(f"{artist['name']}")
 
-    searched_playlist = search_playlist(get_access_token())
-    if searched_playlist:
-        print(f"\nYou chose: {searched_playlist['name']}")
+    # searched_playlist = search_playlist(get_access_token())
+    # if searched_playlist:
+    #     print(f"\nYou chose: {searched_playlist['name']}")
+
+    searched_song = search_song(get_access_token())
+    if searched_song:
+        print(
+            f"\nYou chose {searched_song['name']} by {searched_song['artists'][0]['name']}"
+        )
 
 
 if __name__ == "__main__":

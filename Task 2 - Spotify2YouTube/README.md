@@ -45,6 +45,7 @@ A CLI program to transfer your Spotify library to YouTube.
     | Playlists list | 1 |
     | Playlist items list | 1 |
 
+    - Currently the script supports only a few songs per fetch, so the quota limit is not reached. 
     - To try reduce the number of API calls, the script caches the results of some API calls in the `cache` directory. This directory can be deleted to force the script to make new API calls.
     - The quota resets at midnight PST (12:30 PM IST).
     - If the quota limit is reached, a workaround is to create a new project on the [Google Cloud Console](https://console.cloud.google.com/) and obtain new credentials. Replace the `youtube/credentials.json` file with the new one and run the script again.
