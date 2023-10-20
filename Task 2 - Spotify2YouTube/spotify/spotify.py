@@ -104,6 +104,33 @@ def get_playlists(access_token):
     return playlists
 
 
+def get_playlist_items(access_token, playlist_id, limit=10):
+    """
+    Get the items in a playlist from Spotify.
+
+    Args:
+        access_token (str): Access token
+        playlist_id (str): Playlist ID
+        limit (int): Number of items to get
+    Returns:
+        items (list): List of playlist items
+    """
+    r = spotify_api_request(
+        BASE_API_URL + f"/v1/playlists/{playlist_id}/tracks",
+        access_token,
+        params={"limit": limit},
+    )
+    items = r["items"]
+    while len(items) < limit:
+        r = spotify_api_request(
+            r["next"],
+            access_token,
+            params={"limit": limit - len(items)},
+        )
+        items.extend(r["items"])
+    return items
+
+
 def search_song(access_token):
     """
     Search for a song on spotify
@@ -190,6 +217,14 @@ def main():
     searched_playlist = search_playlist(get_playlists(get_access_token()))
     if searched_playlist:
         print(f"\nYou chose: {searched_playlist['name']}")
+        playlist_items = get_playlist_items(
+            get_access_token(), searched_playlist["id"], 10
+        )
+        print("\nYour playlist contains:")
+        for item in playlist_items:
+            print(f"{item['track']['name']} by {item['track']['artists'][0]['name']}")
+    else:
+        print("\nNo playlist selected")
 
     # searched_song = search_song(get_access_token())
     # if searched_song:

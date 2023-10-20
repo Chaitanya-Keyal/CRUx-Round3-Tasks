@@ -140,13 +140,14 @@ def get_playlists(youtube):
     return playlists
 
 
-def get_playlist_items(youtube, playlist_id):
+def get_playlist_items(youtube, playlist_id, limit=10):
     """
     Gets the items in a playlist.
 
     Args:
         youtube (googleapiclient.discovery.Resource): YouTube API resource
         playlist_id (str): Playlist ID
+        limit (int): Number of items to get
     Returns:
         list: Playlist items
     """
@@ -155,7 +156,7 @@ def get_playlist_items(youtube, playlist_id):
         {
             "part": "snippet,contentDetails",
             "playlistId": playlist_id,
-            "maxResults": 50,
+            "maxResults": limit,
         },
     )
     videos = []
