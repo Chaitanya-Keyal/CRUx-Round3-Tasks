@@ -1,8 +1,10 @@
 import json
 import os
 
+import httplib2
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google_auth_httplib2 import AuthorizedHttp
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as api_build
 from googleapiclient.errors import HttpError
@@ -41,9 +43,23 @@ def auth():
     return creds
 
 
-# f = open("youtube/api_key.json", "r")
-# api_key = json.loads(f.read())["api_key"]
-# f.close()
+http = AuthorizedHttp(auth(), http=httplib2.Http(cache=".cache"))
+
+
+def youtube_api_request(request, params):
+    """
+    Makes a request to the YouTube API.
+
+    Args:
+        request (googleapiclient.http.HttpRequest): YouTube API request
+        params (dict): Parameters for the request
+    Returns:
+        dict: Response from the YouTube API
+    """
+    try:
+        return request(**params).execute(http=http)
+    except HttpError as e:
+        print(e.reason)
 
 
 def add_subscription(youtube, channel_name):
@@ -52,42 +68,44 @@ def add_subscription(youtube, channel_name):
 
     Args:
         youtube (googleapiclient.discovery.Resource): YouTube API resource
-        channel_id (str): Channel ID
+        channel_name (str): Name of the channel to subscribe to
     Returns:
         None
     """
-    print(f"Searching for {channel_name}...")
-    request = youtube.search().list(
-        part="snippet",
-        maxResults=1,
-        q=channel_name,
-        type="channel",
-    )
-    response = request.execute()
-    channel_id = response["items"][0]["snippet"]["channelId"]
-    print(f"Found {channel_name}! Adding subscription...")
-    request = youtube.subscriptions().insert(
-        part="snippet",
-        body={
-            "snippet": {
-                "resourceId": {
-                    "kind": "youtube#channel",
-                    "channelId": channel_id,
-                }
-            }
+    print(f"\nSearching for {channel_name}...")
+    search_response = youtube_api_request(
+        youtube.search().list,
+        {
+            "part": "snippet",
+            "q": channel_name,
+            "type": "channel",
+            "maxResults": 1,
         },
     )
-    try:
-        response = request.execute()
-        print(f"Successfully added {channel_name}!")
-    except HttpError as e:
-        print(e.reason)
+    channel_id = search_response["items"][0]["snippet"]["channelId"]
+    print(
+        f"\nAdding subscription to {search_response['items'][0]['snippet']['title']}..."
+    )
+    youtube_api_request(
+        youtube.subscriptions().insert,
+        {
+            "part": "snippet",
+            "body": {
+                "snippet": {
+                    "resourceId": {
+                        "kind": "youtube#channel",
+                        "channelId": channel_id,
+                    }
+                }
+            },
+        },
+    )
 
 
 def main(creds):
     youtube = api_build("youtube", "v3", credentials=creds)
 
-    list_of_artists = ["Ed Sheeran"]
+    list_of_artists = []
     for artist in list_of_artists:
         add_subscription(youtube, artist)
 
