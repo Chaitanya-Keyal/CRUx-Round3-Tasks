@@ -262,7 +262,7 @@ def get_new_liked_songs(access_token):
         f.seek(0)
         f.truncate()
         json.dump(d, f)
-    return songs
+    return songs[:10]
 
 
 def get_song_uri(access_token, name, artist):

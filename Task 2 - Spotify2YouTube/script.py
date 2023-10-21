@@ -59,9 +59,7 @@ def convert_yt_spotify():
     if searched_playlist:
         print(f"\nYou chose: {searched_playlist['name']}")
         print("\nGetting YouTube playlist items...")
-        playlist_items = youtube.get_playlist_items(
-            YOUTUBE, searched_playlist["id"], 10
-        )
+        playlist_items = youtube.get_playlist_items(YOUTUBE, searched_playlist["id"])
         print("\nCreating Spotify playlist...")
         spotify_playlist_id = spotify.create_playlist(
             spotify.get_access_token(),

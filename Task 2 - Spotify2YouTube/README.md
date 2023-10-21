@@ -32,7 +32,7 @@ A CLI program to transfer your Spotify library to YouTube.
 - Follow further instructions in the terminal.
 
 ### Notes:
-- The YouTube API has a quota limit of 10,000 units per day per project, the script uses these as follows:
+- The YouTube API has a quota limit of only 10,000 units per day per project, the script uses these as follows:
     | Function | Units |
     | --- | --- |
     | Search | 100 |
@@ -43,8 +43,8 @@ A CLI program to transfer your Spotify library to YouTube.
     | Playlists list | 1 |
     | Playlist items list | 1 |
 
-    - Currently the script supports only a few songs per fetch, so the quota limit is not reached. 
+    - Currently the script supports only a few songs per fetch, hoping to not hit the quota limit.
     - To try reduce the number of API calls, the script caches the results of API Calls using `httplib2`'s caching feature.
     - The quota resets at midnight PST (12:30 PM IST).
     - If the quota limit is reached, a workaround is to create a new project on the [Google Cloud Console](https://console.cloud.google.com/) and obtain new credentials. Replace the `youtube/credentials.json` file with the new one and run the script again.
-- The script checks for newly liked songs on Spotify based on the "last checked" timestamp (stored locally for each user). For a new user, the songs liked in the last week are added to the YouTube liked videos playlist.
+- The script checks for newly liked songs on Spotify based on the "last checked" timestamp (stored locally for each user). For a new user, the songs liked in the last week are added to the YouTube liked videos playlist. (Limited to 10 songs)
