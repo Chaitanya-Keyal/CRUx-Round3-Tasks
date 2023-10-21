@@ -98,10 +98,15 @@ def add_subscription(youtube, channel_name):
             "part": "snippet",
             "q": channel_name,
             "type": "channel",
-            "maxResults": 1,
+            "maxResults": 3,
         },
     )
-    channel_id = search_response["items"][0]["snippet"]["channelId"]
+    for i in range(len(search_response["items"])):
+        if not search_response["items"][i]["snippet"]["title"].endswith(" - Topic"):
+            channel_id = search_response["items"][i]["snippet"]["channelId"]
+            break
+    else:
+        channel_id = search_response["items"][0]["snippet"]["channelId"]
     print(
         f"\nAdding subscription to {search_response['items'][0]['snippet']['title']}..."
     )
