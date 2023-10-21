@@ -5,6 +5,9 @@ test.py
 credentials.json
 token.json
 
+credentials1.json
+credentials2.json
+
 Task 1 - Chrono2GCal/customisation.json
 
 Task 2 - Spotify2YouTube/spotify/liked_timestamps.json

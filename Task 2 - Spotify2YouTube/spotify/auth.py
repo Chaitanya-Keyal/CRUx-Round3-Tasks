@@ -80,7 +80,7 @@ def callback():
         with open("spotify/token.json", "w") as f:
             json.dump(token, f)
         auth_event.set()
-        return "Authorisation Successful. You can close this tab and return to the application."
+        return "Spotify Authorisation Successful. You can close this tab and return to the application."
     except ValueError:
         error = request.args.get("error")
         raise Exception(f"Error: {error}")

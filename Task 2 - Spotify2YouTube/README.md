@@ -6,7 +6,6 @@ A CLI program to transfer your Spotify library to YouTube.
 - Subscribes to user's top artists on YouTube.
 - Creates a playlist for the user's top tracks.
 - Convert a Spotify playlist to a YouTube playlist and vice versa.
-- Obtain lyrics of a song on Spotify using corresponding YouTube music video's captions.
 - Likes the music video of a song on YouTube if it is liked on Spotify.
 
 ### Usage:
@@ -38,7 +37,6 @@ A CLI program to transfer your Spotify library to YouTube.
     | --- | --- |
     | Search | 100 |
     | Artist subscription | 50 |
-    | Video caption download | 50 |
     | Video like | 50 |
     | Playlist creation | 50 |
     | Playlist item addition | 50 |
@@ -49,3 +47,4 @@ A CLI program to transfer your Spotify library to YouTube.
     - To try reduce the number of API calls, the script caches the results of API Calls using `httplib2`'s caching feature.
     - The quota resets at midnight PST (12:30 PM IST).
     - If the quota limit is reached, a workaround is to create a new project on the [Google Cloud Console](https://console.cloud.google.com/) and obtain new credentials. Replace the `youtube/credentials.json` file with the new one and run the script again.
+- The script checks for newly liked songs on Spotify based on the "last checked" timestamp (stored locally for each user). For a new user, the songs liked in the last week are added to the YouTube liked videos playlist.

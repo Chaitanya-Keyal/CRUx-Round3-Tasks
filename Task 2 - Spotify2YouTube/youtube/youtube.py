@@ -1,5 +1,4 @@
 import os
-import sys
 
 import httplib2
 from google.auth.transport.requests import Request
@@ -9,19 +8,15 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build as api_build
 from googleapiclient.errors import HttpError
 
-sys.path.append(os.curdir)
-from util.fuzzy_playlist import search_playlist
-
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
     "https://www.googleapis.com/auth/youtube",
     "https://www.googleapis.com/auth/youtube.force-ssl",
     "https://www.googleapis.com/auth/youtube.readonly",
-    "https://www.googleapis.com/auth/youtube.download",
 ]
 
 
-def auth():
+def get_creds():
     """
     Authorises the app to access the user's YouTube account.
 
@@ -46,10 +41,7 @@ def auth():
     return creds
 
 
-http = AuthorizedHttp(auth(), http=httplib2.Http(cache=".cache"))
-
-
-# region Utility functions
+http = AuthorizedHttp(get_creds(), http=httplib2.Http(cache=".cache"))
 
 
 def youtube_api_request(request, params):
@@ -62,19 +54,31 @@ def youtube_api_request(request, params):
     Returns:
         dict: Response from the YouTube API
     """
+    retry_count = 0
     try:
         return request(**params).execute(http=http)
     except HttpError as e:
-        if e.reason == "Channel not found.":
+        if e.error_details[0]["reason"] == "SERVICE_UNAVAILABLE":
+            if retry_count < 3:
+                retry_count += 1
+                return youtube_api_request(request, params)
+            else:
+                return 503
+        elif e.reason == "Channel not found.":
             print(
                 "Channel not found. You need to create a channel on your account."
                 + "\nTry creating a public playlist on your account and try again."
             )
-        else:
+        elif e.error_details[0]["reason"] == "quotaExceeded":
+            print("YouTube API Quota exceeded. Try again tomorrow. :(")
+            print(
+                "You can also try creating a new project on the Google Cloud Console and using its credentials."
+            )
+            exit()
+        elif e.error_details[0]["reason"] == "subscriptionDuplicate":
             print(e.reason)
-
-
-# endregion
+        else:
+            print(e)
 
 
 def add_subscription(youtube, channel_name):
@@ -132,7 +136,7 @@ def get_playlists(youtube):
     playlists_response = youtube_api_request(
         youtube.playlists().list,
         {
-            "part": "snippet",
+            "part": "snippet,status",
             "mine": True,
             "maxResults": 50,
         },
@@ -143,6 +147,7 @@ def get_playlists(youtube):
             {
                 "name": playlist["snippet"]["title"],
                 "id": playlist["id"],
+                "public": playlist["status"]["privacyStatus"] == "public",
             }
         )
     return playlists
@@ -168,10 +173,22 @@ def get_playlist_items(youtube, playlist_id, limit=10):
         },
     )
     videos = []
+
+    def get_title_artist(s):
+        title = (
+            s.split(" - ")[1].split(" (")[0]
+            if "(" in s
+            else s.split(" - ")[1].split(" [")[0]
+        )
+        artist = s.split(" - ")[0]
+        return title, artist
+
     for video in playlist_items_response["items"]:
+        title, artist = get_title_artist(video["snippet"]["title"])
         videos.append(
             {
-                "title": video["snippet"]["title"],
+                "title": title,
+                "artist": artist,
                 "id": video["contentDetails"]["videoId"],
             }
         )
@@ -186,9 +203,11 @@ def get_playlist_items(youtube, playlist_id, limit=10):
             },
         )
         for video in playlist_items_response["items"]:
+            title, artist = get_title_artist(video["snippet"]["title"])
             videos.append(
                 {
-                    "title": video["snippet"]["title"],
+                    "title": title,
+                    "artist": artist,
                     "id": video["contentDetails"]["videoId"],
                 }
             )
@@ -197,7 +216,7 @@ def get_playlist_items(youtube, playlist_id, limit=10):
 
 def create_playlist(youtube, name, public=True):
     """
-    Creates a playlist.
+    Creates a new playlist or returns the id of existing playlist with same name
 
     Args:
         youtube (googleapiclient.discovery.Resource): YouTube API resource
@@ -206,6 +225,21 @@ def create_playlist(youtube, name, public=True):
     Returns:
         str: Playlist ID
     """
+    playlists = get_playlists(youtube)
+    for playlist in playlists:
+        if playlist["name"] == name:
+            f = (
+                input(
+                    f"'{name}' Playlist already exists. Do you want to overwrite it? (y/n): "
+                )
+                .strip()
+                .lower()
+            )
+            if f == "y":
+                return playlist["id"]
+            else:
+                break
+
     playlist_response = youtube_api_request(
         youtube.playlists().insert,
         {
@@ -232,9 +266,23 @@ def add_video_to_playlist(youtube, playlist_id, video_id):
         playlist_id (str): Playlist ID
         video_id (str): Video ID
     Returns:
-        None
+        response: Response from the YouTube API
     """
-    youtube_api_request(
+
+    # check if video is already in playlist
+    playlist_items_response = youtube_api_request(
+        youtube.playlistItems().list,
+        {
+            "part": "snippet",
+            "playlistId": playlist_id,
+            "maxResults": 50,
+        },
+    )
+    for video in playlist_items_response["items"]:
+        if video["snippet"]["resourceId"]["videoId"] == video_id:
+            return
+
+    r = youtube_api_request(
         youtube.playlistItems().insert,
         {
             "part": "snippet",
@@ -249,6 +297,7 @@ def add_video_to_playlist(youtube, playlist_id, video_id):
             },
         },
     )
+    return r
 
 
 # endregion
@@ -295,26 +344,3 @@ def like_video(youtube, video_id):
             "rating": "like",
         },
     )
-
-
-def main(creds):
-    youtube = api_build("youtube", "v3", credentials=creds)
-
-    # playlists = get_playlists(youtube)
-    # search_response = search_playlist(playlists)
-    # if search_response:
-    #     videos = get_playlist_items(youtube, search_response["id"])
-    #     print(videos)
-    # else:
-    #     print("No playlists found.")
-
-    created = create_playlist(youtube, "Test Playlist", public=False)
-    print(created)
-    video_id = get_video_id(youtube, "Overdrive", "Post Malone")
-    print(video_id)
-    add_video_to_playlist(youtube, created, video_id)
-
-
-if __name__ == "__main__":
-    creds = auth()
-    main(creds=creds)
