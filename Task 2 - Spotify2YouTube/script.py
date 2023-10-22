@@ -40,12 +40,12 @@ def convert_spotify_yt():
         )
         print("\nAdding songs to YouTube playlist...")
         for item in playlist_items:
-            video_id = youtube.get_video_id(YOUTUBE, item["name"], item["artist"])
+            video_id = youtube.get_video_id(YOUTUBE, item["title"], item["artist"])
             r = youtube.add_video_to_playlist(YOUTUBE, youtube_playlist_id, video_id)
             if r == 409:
-                print(f"Error adding {item['name']}")
+                print(f"Error adding {item['title']}")
             else:
-                print(f"Added {item['name']}")
+                print(f"Added {item['title']}")
         print("\nDone!")
     else:
         print("\nNo playlist selected")

@@ -101,14 +101,13 @@ def add_subscription(youtube, channel_name):
             "maxResults": 3,
         },
     )
+    i = 0
     for i in range(len(search_response["items"])):
         if not search_response["items"][i]["snippet"]["title"].endswith(" - Topic"):
-            channel_id = search_response["items"][i]["snippet"]["channelId"]
             break
-    else:
-        channel_id = search_response["items"][0]["snippet"]["channelId"]
+    channel_id = search_response["items"][i]["snippet"]["channelId"]
     print(
-        f"\nAdding subscription to {search_response['items'][0]['snippet']['title']}..."
+        f"\nAdding subscription to {search_response['items'][i]['snippet']['title']}..."
     )
     youtube_api_request(
         youtube.subscriptions().insert,
@@ -170,7 +169,7 @@ def get_playlist_items(youtube, playlist_id):
     """
     playlist_items_response = youtube_api_request(
         youtube.playlistItems().list,
-        {"part": "snippet,contentDetails", "playlistId": playlist_id},
+        {"part": "snippet", "playlistId": playlist_id},
     )
     videos = []
 
@@ -189,14 +188,13 @@ def get_playlist_items(youtube, playlist_id):
             {
                 "title": title,
                 "artist": artist,
-                "id": video["contentDetails"]["videoId"],
             }
         )
     while playlist_items_response.get("nextPageToken"):
         playlist_items_response = youtube_api_request(
             youtube.playlistItems().list,
             {
-                "part": "snippet,contentDetails",
+                "part": "snippet",
                 "playlistId": playlist_id,
                 "pageToken": playlist_items_response["nextPageToken"],
             },
@@ -207,7 +205,6 @@ def get_playlist_items(youtube, playlist_id):
                 {
                     "title": title,
                     "artist": artist,
-                    "id": video["contentDetails"]["videoId"],
                 }
             )
     return videos

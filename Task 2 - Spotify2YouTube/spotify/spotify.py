@@ -132,7 +132,10 @@ def get_playlist_items(access_token, playlist_id, limit=10):
         access_token,
         params={"limit": limit},
     )
-    items = r["items"]
+    items = [
+        {"title": item["track"]["name"], "artist": item["track"]["artists"][0]["name"]}
+        for item in r["items"]
+    ]
     if not r["next"]:
         return items
     while len(items) < limit:
@@ -141,7 +144,15 @@ def get_playlist_items(access_token, playlist_id, limit=10):
             access_token,
             params={"limit": limit - len(items)},
         )
-        items.extend(r["items"])
+        items.extend(
+            [
+                {
+                    "title": item["track"]["name"],
+                    "artist": item["track"]["artists"][0]["name"],
+                }
+                for item in r["items"]
+            ]
+        )
     return items
 
 
@@ -276,6 +287,7 @@ def get_song_uri(access_token, name, artist):
     Returns:
         uri (str): Song URI
     """
+    tried_both = False
     r = spotify_api_request(
         BASE_API_URL + "/v1/search",
         access_token,
@@ -288,11 +300,16 @@ def get_song_uri(access_token, name, artist):
     try:
         return r["tracks"]["items"][0]["uri"]
     except IndexError:
-        print(f"Song not found: {name} by {artist}")
-        return None
+        if tried_both:
+            print(f"Song not found: {name} by {artist}")
+            return None
+        else:
+            name, artist = artist, name
+            tried_both = True
+            return get_song_uri(access_token, name, artist)
 
 
-def search_song(access_token):
+def search_song(access_token):  # NOTE: This function is not used in the script
     """
     Search for a song on spotify
 
