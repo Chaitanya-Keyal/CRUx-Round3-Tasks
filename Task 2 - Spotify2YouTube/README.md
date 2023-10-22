@@ -14,6 +14,7 @@ A CLI program to transfer your Spotify library to YouTube.
 - Both Spotify and YouTube developer keys are required to use this script.
 - For Spotify:
     - Create an app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+    - Tick the checkbox for "Web API" in the app settings.
     - Add `http://localhost:8888/callback` as a redirect URI in the app settings.
     - Copy the client ID and client secret from the app settings.
     - Create the file `spotify/credentials.json` with the following contents:
@@ -26,8 +27,13 @@ A CLI program to transfer your Spotify library to YouTube.
         }
         ```
 - For YouTube:
-    - Follow the instructions on the [YouTube API Quickstart](https://developers.google.com/youtube/v3/quickstart/python) page to create a project and obtain the credentials file.
-    - Rename the file to `youtube/credentials.json` and place it in the same directory as `script.py`.
+    - Create or select a project in the [Google Cloud Console](https://console.cloud.google.com/).
+    - In the [library panel](https://console.cloud.google.com/apis/library), enable the YouTube Data API v3. Click into the listing for that API and make sure the API is enabled for your project.
+    - Set up the [OAuth consent screen](https://console.cloud.google.com/apis/credentials/consent), and add your email address as a test user.
+    - In the [credentials panel](https://console.cloud.google.com/apis/credentials), create an OAuth client ID.
+    - Select "Desktop app" as the type of application.
+    - Download the JSON file that contains your OAuth 2.0 credentials to the current directory.
+    - Rename the file to `youtube/credentials.json`.
 - Run `script.py`. It will prompt you to authorize the script to access your Spotify and YouTube accounts.
 - Follow further instructions in the terminal.
 
