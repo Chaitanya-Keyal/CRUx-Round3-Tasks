@@ -26,7 +26,7 @@ A CLI program to transfer your Spotify library to YouTube.
         }
         ```
 - For YouTube:
-    - Follow the instructions on [YouTube API Quickstart](https://developers.google.com/youtube/v3/quickstart/python) page to create a project and obtain the credentials file.
+    - Follow the instructions on the [YouTube API Quickstart](https://developers.google.com/youtube/v3/quickstart/python) page to create a project and obtain the credentials file.
     - Rename the file to `youtube/credentials.json` and place it in the same directory as `script.py`.
 - Run `script.py`. It will prompt you to authorize the script to access your Spotify and YouTube accounts.
 - Follow further instructions in the terminal.

@@ -174,13 +174,24 @@ def get_playlist_items(youtube, playlist_id):
     videos = []
 
     def get_title_artist(s):
-        title = (
-            s.split(" - ")[1].split(" (")[0]
-            if "(" in s
-            else s.split(" - ")[1].split(" [")[0]
-        )
-        artist = s.split(" - ")[0]
-        return title, artist
+        try:
+            if " - " in s:
+                title = s.split(" - ")[1]
+                if " (" in title:
+                    title = title.split(" (")[0]
+                elif " [" in title:
+                    title = title.split(" [")[0]
+                artist = s.split(" - ")[0]
+            elif "|" in s:
+                title = s.split(" | ")[0]
+                if " (" in title:
+                    title = title.split(" (")[0]
+                elif " [" in title:
+                    title = title.split(" [")[0]
+                artist = s.split(" | ")[1]
+            return title, artist
+        except IndexError:
+            return s, ""
 
     for video in playlist_items_response["items"]:
         title, artist = get_title_artist(video["snippet"]["title"])
