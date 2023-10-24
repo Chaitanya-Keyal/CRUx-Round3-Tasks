@@ -2,7 +2,7 @@ import os
 import pickle
 
 
-ASSET = os.curdir + "/assets"
+ASSET = os.curdir + "/assets/theme"
 THEME_FILE = os.curdir + "/settings/theme.bin"
 
 

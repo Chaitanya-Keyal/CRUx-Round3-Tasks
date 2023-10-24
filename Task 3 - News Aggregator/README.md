@@ -13,6 +13,12 @@ A tkinter GUI program to aggregate news from various sources.
 - `cd` into the directory containing `script.py`
 - Install the required packages using `pip install -r requirements.txt`
 - Run `util/create_mysql.py` to create the database and tables.
+- Create a file `credentials.json` with the following contents:
+    ```json
+    {
+        "password": "<your_mysql_password>"
+    }
+    ```
 - Run `script.py` to start the program.
 
 ### Notes:
