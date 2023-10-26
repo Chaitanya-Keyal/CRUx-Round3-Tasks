@@ -5,13 +5,15 @@ import pickle
 import random
 import sys
 import threading
-import time
 import tkinter as tk
 import tkinter.ttk as ttk
+import webbrowser
 from io import BytesIO
 from tkinter import filedialog as fd
 from tkinter import messagebox as msgb
 
+import requests
+from bs4 import BeautifulSoup
 from PIL import Image, ImageChops, ImageDraw, ImageTk
 
 sys.path.append(os.curdir)
@@ -26,6 +28,45 @@ THEME_FILE = os.curdir + "/settings/theme.bin"
 
 if not os.name == "nt":
     print("I don't like your Operating System. Install Windows.")
+
+
+class ScrollableFrame(tk.Frame):
+    def __init__(self, parent, height, *args, **kwargs):
+        tk.Frame.__init__(self, parent, *args, **kwargs)
+
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(
+            self,
+            orient="vertical",
+            command=self.canvas.yview,
+            style="Vertical.TScrollbar",
+        )
+        self.scrollable_frame = tk.Frame(self.canvas)
+
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.bind("<Configure>", self._on_frame_configure)
+        self.canvas.bind("<Configure>", self._on_canvas_configure)
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
+
+        self.scrollbar.place(relx=1.0, rely=0, relheight=1.0, anchor="ne")
+        self.canvas.place(relx=0, rely=0, relwidth=0.98, relheight=1.0)
+        self.canvas.create_window(
+            (0, 0),
+            window=self.scrollable_frame,
+            anchor="nw",
+            tags="self.scrollable_frame",
+            height=height,
+        )
+
+    def _on_frame_configure(self, event):
+        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+
+    def _on_canvas_configure(self, event):
+        self.canvas.itemconfig("self.scrollable_frame", width=event.width)
+
+    def _on_mousewheel(self, event):
+        self.canvas.yview_scroll(-1 * int(event.delta / 120), "units")
 
 
 class NewsAggregator(tk.Toplevel):
@@ -44,6 +85,7 @@ class NewsAggregator(tk.Toplevel):
         )
         self.protocol("WM_DELETE_WINDOW", self.exit)
         self.minsize(self.screen_width // 2, self.screen_height)
+        self.articles = []
 
     def initialize(self, name):
         self.name = name
@@ -68,6 +110,29 @@ class NewsAggregator(tk.Toplevel):
         self.acc_button.place(relx=0.99, rely=0.01, anchor="ne")
         self.acc_frame = ttk.Frame()
         self.acc_frame.destroy()
+        self.search_bar()
+
+        self.feed_frame = ttk.Frame(self, style="Card.TFrame", padding=4)
+        tk.Label(
+            self.feed_frame,
+            text="Loading Articles...",
+            font=("rockwell", 16),
+        ).place(relx=0.5, rely=0.5, anchor="center")
+
+        self.feed_frame.place(relx=0.01, rely=0.125, relheight=0.875, relwidth=0.98)
+
+        for i in range(10):
+            self.add_article(
+                "https://timesofindia.indiatimes.com/sports/cricket/icc-world-cup/news/world-cup-aus-vs-ned-highlights-glenn-maxwell-hits-fastest-world-cup-century-after-david-warners-104-as-australia-decimate-netherlands/articleshow/104705248.cms"
+            )
+            self.add_article(
+                "https://www.thehindu.com/sport/cricket/icc-world-cup/icc-world-cup-heinrich-klaasen-one-of-the-most-fearsome-odi-batters-in-world-cricket/article67455059.ece"
+            )
+            self.add_article(
+                "https://sports.ndtv.com/icc-cricket-world-cup-2023/everything-is-must-win-now-for-faltering-england-says-moeen-ali-4514170"
+            )
+
+        self.show_feed()
 
     def start_news(self):
         root.withdraw()
@@ -107,9 +172,8 @@ class NewsAggregator(tk.Toplevel):
                     self.theme_button,
                 ]:
                     self.acc_frame.destroy()
-                    self.unbind("<Button-1>")
 
-            self.bind("<Button-1>", clicked)
+            self.bind("<Button-1>", clicked, add="+")
             self.acc_frame = ttk.Frame(self, style="Card.TFrame", padding=4)
             self.acc_frame.place(relx=0.99, rely=0.075, anchor="ne")
 
@@ -511,6 +575,54 @@ class NewsAggregator(tk.Toplevel):
 
     # endregion
 
+    def search_bar(self):
+        self.search_icon = ImageTk.PhotoImage(
+            Image.open(os.path.join(ASSETS, "search.png")).resize(
+                (20, 20), Image.Resampling.LANCZOS
+            )
+        )
+        self.search_var = tk.StringVar(value="Search")
+        self.search_entry = ttk.Entry(
+            self, style="Search.TEntry", textvariable=self.search_var
+        )
+        self.search_entry.configure(xscrollcommand=self.search_entry.xview_moveto(1))
+        self.search_entry.place(relx=0.01, rely=0.05, relwidth=0.4, relheight=0.05)
+        self.search_button = tk.Button(
+            self,
+            border=0,
+            highlightthickness=0,
+            cursor="hand2",
+            compound="left",
+            image=self.search_icon,
+            command=lambda: print(f"Searching for {self.search_var.get()}"),
+        )
+        self.search_button.place(relx=0.415, rely=0.05, relheight=0.05, anchor="nw")
+
+        def clicked(e):
+            if self.search_entry.winfo_containing(e.x_root, e.y_root) not in [
+                self.search_entry,
+            ]:
+                self.focus_set()
+
+        self.bind("<Button-1>", clicked, add="+")
+
+        self.search_entry.bind("<Return>", lambda a: self.search_button.invoke())
+        self.search_entry.bind("<Return>", lambda a: self.focus_set(), add="+")
+        self.search_entry.bind(
+            "<FocusIn>", lambda a: self.search_entry.select_range(0, tk.END)
+        )
+        self.search_entry.bind(
+            "<FocusOut>", lambda a: self.search_entry.select_range(0, 0)
+        )
+
+    def add_article(self, url):
+        self.article = Article(url)
+        self.articles.append(self.article)
+
+    def show_feed(self):
+        self.feed_frame = FeedFrame(self, self.articles)
+        self.feed_frame.place(relx=0.01, rely=0.125, relheight=0.875, relwidth=0.98)
+
     def show_message(self, title, message, type="info", timeout=0):
         self.mbwin = tk.Tk()
         self.mbwin.withdraw()
@@ -535,6 +647,83 @@ class NewsAggregator(tk.Toplevel):
     def exit(self):
         self.destroy()
         root.destroy()
+
+
+class Article:
+    def __init__(self, url):
+        self.url = url
+        self.soup = self.get_soup()
+        self.title = self.get_title()
+
+    def get_soup(self):
+        try:
+            return BeautifulSoup(
+                requests.get(
+                    self.url, headers={"Referer": "https://www.google.com/"}
+                ).text,
+                "html.parser",
+            )
+        except Exception as e:
+            print(e)
+            return None
+
+    def get_title(self):
+        if "timesofindia" in self.url or "ndtv" in self.url:
+            return self.soup.find("title").text.split(" | ")[0].strip()
+        elif "thehindu" in self.url:
+            return self.soup.find("title").text.split(" - ")[0].strip()
+
+    def get_image(self):
+        # print(self.soup)
+        image = requests.get(
+            self.soup.find("meta", property="og:image", recursive=True).get("content")
+        ).content
+
+        return ImageTk.PhotoImage(
+            Image.open(BytesIO(image)).resize((200, 150), Image.Resampling.LANCZOS)
+        )
+
+
+class ArticleFrame(ttk.Frame):
+    def __init__(self, master, article: Article):
+        super().__init__(master, style="Card.TFrame", padding=4)
+        self.article = article
+        self.title = (
+            (self.article.title[:69] + "...")
+            if len(self.article.title) > 69
+            else self.article.title
+        )
+        self.image = self.article.get_image()
+        self.label = tk.Label(
+            self,
+            text=self.title,
+            image=self.image,
+            compound="top",
+            font=("rockwell", 13),
+            wraplength=200,
+            justify="center",
+            cursor="hand2",
+        )
+        self.label.place(relx=0.5, rely=0.5, relheight=1, relwidth=1, anchor="center")
+        self.label.bind("<Button-1>", lambda a: webbrowser.open(self.article.url))
+
+
+class FeedFrame(ScrollableFrame):
+    def __init__(self, master, articles):
+        super().__init__(master, height=(len(articles) + 4) * 255 // 4)
+        self.articles = articles
+        self.article_frames = [
+            ArticleFrame(self.scrollable_frame, i) for i in self.articles
+        ]
+
+        for i, j in enumerate(self.article_frames):
+            j.place(
+                height=250,
+                relwidth=0.22,
+                relx=(i % 4) * 0.25,
+                y=(i // 4) * 255,
+                anchor="nw",
+            )
 
 
 class Login(tk.Frame):
@@ -562,7 +751,10 @@ class Login(tk.Frame):
             self.check_login = db.do_login(uname, pwd, remember_login=True)
             if self.check_login[0] == "Success":
                 lbl.configure(text="Loading...")
-                self.complete(uname)
+                self.loading_thread = threading.Thread(
+                    target=lambda: self.complete(uname), daemon=True
+                )
+                self.loading_thread.start()
             else:
                 lbl.configure(text="Invalid Credentials! File Corrupted!", fg="red")
                 try:
