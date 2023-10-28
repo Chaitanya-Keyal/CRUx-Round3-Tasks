@@ -13,12 +13,6 @@ from spotify.auth import (
     start_auth_listener,
 )
 
-# region Utility functions
-
-
-def pretty_print(json_object):
-    print(json.dumps(json_object, indent=4))
-
 
 def spotify_api_request(url, access_token, params=None, method="GET", data=None):
     """
@@ -46,9 +40,6 @@ def spotify_api_request(url, access_token, params=None, method="GET", data=None)
     if r.status_code not in [200, 201]:
         raise Exception(f"Status code: {r.status_code} {r.text}")
     return r.json()
-
-
-# endregion
 
 
 def get_user_details(access_token):
