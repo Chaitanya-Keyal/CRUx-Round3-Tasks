@@ -26,7 +26,7 @@ cursor.execute(
     CREATE TABLE IF NOT EXISTS fav_topics (
         user_id INT NOT NULL,
         topic VARCHAR(255) NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
     """
 )
@@ -34,8 +34,10 @@ cursor.execute(
     """
     CREATE TABLE IF NOT EXISTS saved_articles (
         user_id INT NOT NULL,
-        article_link VARCHAR(255) NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id)
+        title VARCHAR(255) NOT NULL,
+        link VARCHAR(255) NOT NULL,
+        image VARCHAR(255) NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     )
     """
 )

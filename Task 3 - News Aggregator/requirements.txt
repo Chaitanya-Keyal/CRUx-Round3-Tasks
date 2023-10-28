@@ -1,5 +1,6 @@
 bcrypt
 beautifulsoup4
+lxml
 mysql-connector-python
 pillow
 requests

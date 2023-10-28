@@ -2,8 +2,6 @@ import base64
 import datetime
 import json
 import os
-import time
-from datetime import date
 
 import bcrypt
 import mysql.connector as msc
@@ -260,35 +258,123 @@ def load_img(user):
 # endregion
 
 
-def save_article(username, url):
+# region Articles
+
+
+def save_article(username, title, link, image):
     """
     Saves the article for the user
 
     Args:
         username (str): Username
-        url (str): URL of the article
+        title (str): Title of the article
+        link (str): Link of the article
+        image (str): Link of the image
 
     Returns:
         str: Success or Error message
     """
     db.data_change(
-        f'INSERT INTO saved_articles (user_id, article_link) VALUES ((SELECT id FROM users WHERE username="{username}"), "{url}")'
+        f'INSERT INTO saved_articles (user_id, title, link, image) VALUES ((SELECT id FROM users WHERE username="{username}"), "{title}", "{link}", "{image}")'
     )
     return "Success"
 
 
-def save_topics(username, topic):
+def unsave_article(username, link):
     """
-    Saves the topic for the user
+    Deletes the article for the user
 
     Args:
         username (str): Username
-        topic (str): Topic
+        link (str): Link of the article
 
     Returns:
         str: Success or Error message
     """
     db.data_change(
-        f'INSERT INTO fav_topics (user_id, topic) VALUES ((SELECT id FROM users WHERE username="{username}"), "{topic}")'
+        f'DELETE FROM saved_articles WHERE user_id=(SELECT id FROM users WHERE username="{username}") AND link="{link}"'
     )
     return "Success"
+
+
+def is_saved(username, link):
+    """
+    Checks if the article is saved for the user
+
+    Args:
+        username (str): Username
+        link (str): Link of the article
+
+    Returns:
+        bool: True if the article is saved, False otherwise
+    """
+    res = db.execute(
+        f'SELECT * FROM saved_articles WHERE user_id=(SELECT id FROM users WHERE username="{username}") AND link="{link}"'
+    )
+    return len(res) > 0
+
+
+def get_saved_articles(username):
+    """
+    Gets the saved articles for the user
+
+    Args:
+        username (str): Username
+
+    Returns:
+        list: List of saved articles
+    """
+    res = db.execute(
+        f'SELECT title, link, image FROM saved_articles WHERE user_id=(SELECT id FROM users WHERE username="{username}")'
+    )
+    return [{"title": i[0], "link": i[1], "image": i[2]} for i in res] if res else []
+
+
+# endregion
+
+
+# region Topics
+
+
+def update_saved_topics(username, topics):
+    """
+    Updates the saved topics for the user
+
+    Args:
+        username (str): Username
+        topic (list): List of topics (str)
+
+    Returns:
+        str: Success or Error message
+    """
+    for topic in topics:
+        db.data_change(
+            f'INSERT INTO fav_topics (user_id, topic) VALUES ((SELECT id FROM users WHERE username="{username}"), "{topic}")'
+        )
+
+    r = get_fav_topics(username)
+    for i in r:
+        if i not in topics:
+            db.data_change(
+                f'DELETE FROM fav_topics WHERE user_id=(SELECT id FROM users WHERE username="{username}") AND topic="{i}"'
+            )
+    return "Success"
+
+
+def get_fav_topics(username):
+    """
+    Gets the saved topics for the user
+
+    Args:
+        username (str): Username
+
+    Returns:
+        list: List of saved topics
+    """
+    res = db.execute(
+        f'SELECT topic FROM fav_topics WHERE user_id=(SELECT id FROM users WHERE username="{username}")'
+    )
+    return [i[0] for i in res] if res else []
+
+
+# endregion

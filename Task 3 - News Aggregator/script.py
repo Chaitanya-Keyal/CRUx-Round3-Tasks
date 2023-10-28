@@ -1,38 +1,46 @@
 import base64
-import copy
+import json
 import os
 import pickle
 import random
+import re
 import sys
 import threading
 import tkinter as tk
 import tkinter.ttk as ttk
 import webbrowser
+from functools import partial as lambda_func
 from io import BytesIO
 from tkinter import filedialog as fd
 from tkinter import messagebox as msgb
 
 import requests
-from bs4 import BeautifulSoup
 from PIL import Image, ImageChops, ImageDraw, ImageTk
 
 sys.path.append(os.curdir)
 import util.db_handler as db
 from util.theme import Theme
+from util.xml_parser import get_articles_from_rss
 
-ASSETS = os.curdir + "/assets"
+ASSETS = os.path.join(os.curdir, "assets")
 
-REMEMBER_ME_FILE = os.curdir + "/settings/remember_me.bin"
+REMEMBER_ME_FILE = os.path.join(os.curdir, "settings", "remember_me.bin")
 
-THEME_FILE = os.curdir + "/settings/theme.bin"
+THEME_FILE = os.path.join(os.curdir, "settings", "theme.bin")
+
+f = open(os.path.join(ASSETS, "rss_feeds.json"), "r")
+RSS_FEEDS: dict = json.load(f)
+f.close()
 
 if not os.name == "nt":
     print("I don't like your Operating System. Install Windows.")
 
 
-class ScrollableFrame(tk.Frame):
+class ScrollableFrame(ttk.Frame):
     def __init__(self, parent, height, *args, **kwargs):
-        tk.Frame.__init__(self, parent, *args, **kwargs)
+        ttk.Frame.__init__(
+            self, parent, style="Card.TFrame", padding=4, *args, **kwargs
+        )
 
         self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(
@@ -85,15 +93,95 @@ class NewsAggregator(tk.Toplevel):
         )
         self.protocol("WM_DELETE_WINDOW", self.exit)
         self.minsize(self.screen_width // 2, self.screen_height)
-        self.articles = []
 
     def initialize(self, name):
         self.name = name
+        self.tabs = {"favorites": None, "saved": None}
+        self.tabs.update({i: None for i in RSS_FEEDS})
+        self.feed_threads = {i: None for i in self.tabs}
+        self.feed_frames = {i: None for i in self.tabs}
+        self.loading_labels = {i: None for i in self.tabs}
+        self.loaded_once = {i: False for i in self.tabs}
         self.logo_label.destroy()
         self.geometry(
             f"{self.screen_width}x{self.screen_height}+{self.x_coord}+{self.y_coord}"
         )
         self.minsize(self.screen_width, self.screen_height)
+
+        self.notebook = ttk.Notebook(self)
+        self.notebook.place(relx=0, rely=0, anchor="nw", relheight=1, relwidth=1)
+        self.notebook.enable_traversal()
+
+        self.queue = []
+
+        def load_queue():
+            while True:
+                for topic in self.queue:
+                    print(f"Loading {topic} Feed")
+                    self.queue.remove(topic)
+                    self.loaded_once[topic] = True
+                    self.show_feed(topic)
+                    self.loading_labels[topic].destroy()
+
+        def load_feed(topic, force=False):
+            if not self.loaded_once[topic] or force:
+                self.loading_labels[topic] = tk.Label(
+                    self.tabs[topic],
+                    text="Loading...",
+                    font=("rockwell", 16),
+                )
+                self.loading_labels[topic].place(relx=0.5, rely=0.03, anchor="center")
+
+                if topic == "saved":
+                    print("Loading saved Feed")
+                    self.feed_threads[topic] = threading.Thread(
+                        target=self.show_feed, args=(topic,), daemon=True
+                    )
+                    self.feed_threads[topic].start()
+                    self.loaded_once[topic] = True
+                else:
+                    if topic not in self.queue:
+                        self.queue.append(topic)
+
+            # rebind scroll wheel
+            try:
+                self.feed_frames[topic].canvas.bind_all(
+                    "<MouseWheel>", self.feed_frames[topic]._on_mousewheel
+                )
+            except AttributeError:
+                pass
+
+        self.notebook.bind(
+            "<<NotebookTabChanged>>",
+            lambda a: load_feed(
+                self.notebook.tab(self.notebook.select(), "text").lower()
+            ),
+        )
+
+        threading.Thread(target=load_queue, daemon=True).start()
+
+        for i in self.tabs:
+            self.tabs[i] = tk.Frame(self.notebook)
+            self.tabs[i].place(relx=0, rely=0, relheight=1, relwidth=1, anchor="nw")
+            self.notebook.add(self.tabs[i], text=i.title())
+
+            self.feed_frames[i] = ttk.Frame(
+                self.tabs[i], style="Card.TFrame", padding=4
+            )
+            tk.Label(
+                self.feed_frames[i],
+                text="Wow, Such Empty...",
+                font=("rockwell", 16),
+            ).place(relx=0.5, rely=0.5, anchor="center")
+            self.feed_frames[i].place(
+                relx=0.01, rely=0.07, relheight=0.9, relwidth=0.98
+            )
+            ttk.Button(
+                self.tabs[i],
+                text="Refresh",
+                style="12.TButton",
+                command=lambda_func(load_feed, i, True),
+            ).place(relx=0.01, rely=0.03, anchor="w")
 
         self.my_pfp = NewsAggregator.get_pfp(self.name, (40, 40))
         self.acc_button = tk.Button(
@@ -107,32 +195,9 @@ class NewsAggregator(tk.Toplevel):
             compound="left",
             command=self.account_tab,
         )
-        self.acc_button.place(relx=0.99, rely=0.01, anchor="ne")
+        self.acc_button.place(relx=0.99, rely=0.07, anchor="e")
         self.acc_frame = ttk.Frame()
         self.acc_frame.destroy()
-        self.search_bar()
-
-        self.feed_frame = ttk.Frame(self, style="Card.TFrame", padding=4)
-        tk.Label(
-            self.feed_frame,
-            text="Loading Articles...",
-            font=("rockwell", 16),
-        ).place(relx=0.5, rely=0.5, anchor="center")
-
-        self.feed_frame.place(relx=0.01, rely=0.125, relheight=0.875, relwidth=0.98)
-
-        for i in range(10):
-            self.add_article(
-                "https://timesofindia.indiatimes.com/sports/cricket/icc-world-cup/news/world-cup-aus-vs-ned-highlights-glenn-maxwell-hits-fastest-world-cup-century-after-david-warners-104-as-australia-decimate-netherlands/articleshow/104705248.cms"
-            )
-            self.add_article(
-                "https://www.thehindu.com/sport/cricket/icc-world-cup/icc-world-cup-heinrich-klaasen-one-of-the-most-fearsome-odi-batters-in-world-cricket/article67455059.ece"
-            )
-            self.add_article(
-                "https://sports.ndtv.com/icc-cricket-world-cup-2023/everything-is-must-win-now-for-faltering-england-says-moeen-ali-4514170"
-            )
-
-        self.show_feed()
 
     def start_news(self):
         root.withdraw()
@@ -175,7 +240,7 @@ class NewsAggregator(tk.Toplevel):
 
             self.bind("<Button-1>", clicked, add="+")
             self.acc_frame = ttk.Frame(self, style="Card.TFrame", padding=4)
-            self.acc_frame.place(relx=0.99, rely=0.075, anchor="ne")
+            self.acc_frame.place(relx=0.99, rely=0.1, anchor="ne")
 
             self.log_out_button = ttk.Button(
                 self.acc_frame, text="Log Out", style="12.TButton", command=self.log_out
@@ -483,6 +548,13 @@ class NewsAggregator(tk.Toplevel):
         except:
             pass
 
+        self.queue = []
+        for i in self.feed_frames:
+            self.feed_frames[i].destroy()
+
+        self.feed_frames = {i: None for i in self.tabs}
+        self.feed_threads = {i: None for i in self.tabs}
+
         self.screen_width = int(0.9 * self.winfo_screenwidth())
         self.screen_height = int(self.screen_width / 1.9)
         self.x_coord = self.winfo_screenwidth() // 2 - self.screen_width // 2
@@ -615,85 +687,113 @@ class NewsAggregator(tk.Toplevel):
             "<FocusOut>", lambda a: self.search_entry.select_range(0, 0)
         )
 
-    def add_article(self, url):
-        self.article = Article(url)
-        self.articles.append(self.article)
+    def show_feed(self, topic="favorites"):
+        self.articles = Feed(topic, self.name).articles
+        self.feed_frames[topic].destroy()
+        self.feed_frames[topic] = ttk.Frame(
+            self.tabs[topic], style="Card.TFrame", padding=4
+        )
+        tk.Label(
+            self.feed_frames[topic],
+            text="Wow, Such Empty...",
+            font=("rockwell", 16),
+        ).place(relx=0.5, rely=0.5, anchor="center")
+        self.feed_frames[topic].place(
+            relx=0.01, rely=0.07, relheight=0.9, relwidth=0.98
+        )
 
-    def show_feed(self):
-        self.feed_frame = FeedFrame(self, self.articles)
-        self.feed_frame.place(relx=0.01, rely=0.125, relheight=0.875, relwidth=0.98)
+        self.feed_frames[topic] = FeedFrame(self.tabs[topic], self.articles, self.name)
+        self.feed_frames[topic].place(
+            relx=0.01, rely=0.07, relheight=0.9, relwidth=0.98
+        )
 
-    def show_message(self, title, message, type="info", timeout=0):
-        self.mbwin = tk.Tk()
-        self.mbwin.withdraw()
+        self.loading_labels[topic].destroy()
+
+        # rebind scroll wheel to active tab
         try:
-            if timeout:
-                self.mbwin.after(timeout, self.mbwin.destroy)
-            if type == "info":
-                msgb.showinfo(title, message, master=self.mbwin)
-            elif type == "warning":
-                msgb.showwarning(title, message, master=self.mbwin)
-            elif type == "error":
-                msgb.showerror(title, message, master=self.mbwin)
-            elif type == "okcancel":
-                okcancel = msgb.askokcancel(title, message, master=self.mbwin)
-                return okcancel
-            elif type == "yesno":
-                yesno = msgb.askyesno(title, message, master=self.mbwin)
-                return yesno
-        except Exception as e:
-            print(e)
+            current_frame = self.feed_frames[
+                self.notebook.tab(self.notebook.select(), "text").lower()
+            ]
+            current_frame.canvas.bind_all("<MouseWheel>", current_frame._on_mousewheel)
+        except AttributeError:
+            pass
 
     def exit(self):
         self.destroy()
         root.destroy()
 
 
+class Feed:
+    def __init__(self, topic, username):
+        self.articles = []
+        if topic == "favorites":
+            self.topics = db.get_fav_topics(username)
+            if not self.topics:
+                self.topics = RSS_FEEDS.keys()
+        elif topic == "saved":
+            articles = db.get_saved_articles(username)
+            for i in articles:
+                self.articles.append(Article(i))
+            self.topics = []
+        else:
+            self.topics = [topic]
+
+        self.articles_per_topic = (15 // len(self.topics)) if len(self.topics) else 15
+        for i in self.topics:
+            self.add_articles(i, self.articles_per_topic)
+        if len(self.articles) > 15:
+            self.articles = random.sample(self.articles, 15)
+        else:
+            random.shuffle(self.articles)
+
+    def add_articles(self, topic, articles_per_topic):
+        for i in RSS_FEEDS[topic]:
+            articles_per_feed = articles_per_topic // len(RSS_FEEDS[topic]) + 1
+            feed = get_articles_from_rss(i, articles_per_feed)
+            for j in feed:
+                self.articles.append(Article(j))
+
+
 class Article:
-    def __init__(self, url):
-        self.url = url
-        self.soup = self.get_soup()
-        self.title = self.get_title()
-
-    def get_soup(self):
+    def __init__(self, article_dict: dict):
+        self.link = article_dict["link"]
+        self.title = article_dict["title"]
+        self.image = article_dict["image"]
         try:
-            return BeautifulSoup(
-                requests.get(
-                    self.url, headers={"Referer": "https://www.google.com/"}
-                ).text,
-                "html.parser",
+            self.tk_image = ImageTk.PhotoImage(
+                Image.open(
+                    BytesIO(
+                        requests.get(
+                            self.image,
+                            headers={
+                                "Referer": "https://www.google.com/",
+                                "User-Agent": "Mozilla/5.0",
+                            },
+                        ).content
+                    )
+                ).resize((200, 150), Image.Resampling.LANCZOS)
             )
-        except Exception as e:
-            print(e)
-            return None
-
-    def get_title(self):
-        if "timesofindia" in self.url or "ndtv" in self.url:
-            return self.soup.find("title").text.split(" | ")[0].strip()
-        elif "thehindu" in self.url:
-            return self.soup.find("title").text.split(" - ")[0].strip()
-
-    def get_image(self):
-        # print(self.soup)
-        image = requests.get(
-            self.soup.find("meta", property="og:image", recursive=True).get("content")
-        ).content
-
-        return ImageTk.PhotoImage(
-            Image.open(BytesIO(image)).resize((200, 150), Image.Resampling.LANCZOS)
-        )
+        except:
+            self.tk_image = ImageTk.PhotoImage(
+                Image.open(os.path.join(ASSETS, "logo.png")).resize(
+                    (225, 150), Image.Resampling.LANCZOS
+                )
+            )
+            self.image = None
 
 
 class ArticleFrame(ttk.Frame):
-    def __init__(self, master, article: Article):
+    def __init__(self, master, article: Article, username):
         super().__init__(master, style="Card.TFrame", padding=4)
+        self.master = master
+        self.username = username
         self.article = article
-        self.title = (
-            (self.article.title[:69] + "...")
-            if len(self.article.title) > 69
-            else self.article.title
-        )
-        self.image = self.article.get_image()
+
+        self.title = self.remove_html_tags(self.article.title)
+        self.title = (self.title[:69] + "...") if len(self.title) > 69 else self.title
+        self.title = self.title.replace("&#8217;", "'")
+
+        self.image = self.article.tk_image
         self.label = tk.Label(
             self,
             text=self.title,
@@ -705,15 +805,78 @@ class ArticleFrame(ttk.Frame):
             cursor="hand2",
         )
         self.label.place(relx=0.5, rely=0.5, relheight=1, relwidth=1, anchor="center")
-        self.label.bind("<Button-1>", lambda a: webbrowser.open(self.article.url))
+        self.label.bind("<Button-1>", lambda a: webbrowser.open(self.article.link))
+        self.save_unsave()
+
+    def save_unsave(self):
+        self.save_image = ImageTk.PhotoImage(
+            Image.open(os.path.join(ASSETS, "save.png")).resize(
+                (20, 20), Image.Resampling.LANCZOS
+            )
+        )
+        self.unsave_image = ImageTk.PhotoImage(
+            Image.open(os.path.join(ASSETS, "unsave.png")).resize(
+                (20, 20), Image.Resampling.LANCZOS
+            )
+        )
+
+        self.save_button = tk.Button(
+            self,
+            image=self.save_image,
+            highlightthickness=0,
+            cursor="hand2",
+            border=0,
+            command=self.save_article,
+        )
+
+        self.unsave_button = tk.Button(
+            self,
+            image=self.unsave_image,
+            highlightthickness=0,
+            cursor="hand2",
+            border=0,
+            command=self.unsave_article,
+        )
+
+        if db.is_saved(self.username, self.article.link):
+            self.save_button.place_forget()
+            self.unsave_button.place(relx=0.95, rely=0.05, anchor="ne")
+        else:
+            self.unsave_button.place_forget()
+            self.save_button.place(relx=0.95, rely=0.05, anchor="ne")
+
+    def remove_html_tags(self, text):
+        """Remove html tags from a string"""
+
+        clean = re.compile("<.*?>")
+        return re.sub(clean, "", text)
+
+    def save_article(self):
+        db.save_article(
+            self.username, self.article.title, self.article.link, self.article.image
+        )
+        self.save_button.place_forget()
+        self.unsave_button.place(relx=0.95, rely=0.05, anchor="ne")
+
+    def unsave_article(self):
+        db.unsave_article(self.username, self.article.link)
+        self.unsave_button.place_forget()
+        self.save_button.place(relx=0.95, rely=0.05, anchor="ne")
+
+        # Remove from Saved Tab
+        notebook = self.master.master.master.master.master
+        if notebook.tab(notebook.select(), "text") == "Saved":
+            self.destroy()
 
 
 class FeedFrame(ScrollableFrame):
-    def __init__(self, master, articles):
-        super().__init__(master, height=(len(articles) + 4) * 255 // 4)
+    def __init__(self, master, articles: list[Article], username):
+        scrollheight = len(articles) // 4 * 255 + (255 if len(articles) % 4 else 0)
+        super().__init__(master, height=scrollheight)
+
         self.articles = articles
         self.article_frames = [
-            ArticleFrame(self.scrollable_frame, i) for i in self.articles
+            ArticleFrame(self.scrollable_frame, i, username) for i in self.articles
         ]
 
         for i, j in enumerate(self.article_frames):
@@ -734,6 +897,7 @@ class Login(tk.Frame):
         self.complete = complete
 
         if remember_login:
+            flag = True
             log_win = tk.Toplevel(self)
             log_win.geometry(
                 f"{300}x{40}+{self.winfo_screenwidth()//2-150}+{self.winfo_screenheight()//2-20}"
@@ -757,6 +921,7 @@ class Login(tk.Frame):
                 self.loading_thread.start()
             else:
                 lbl.configure(text="Invalid Credentials! File Corrupted!", fg="red")
+                flag = False
                 try:
                     os.remove(REMEMBER_ME_FILE)
                 except FileNotFoundError:
@@ -765,7 +930,8 @@ class Login(tk.Frame):
             def thing():
                 log_win.destroy()
                 master.deiconify()
-                self.destroy()
+                if flag:
+                    self.destroy()
 
             self.after(1500, thing)
 
@@ -1205,10 +1371,10 @@ class Register(tk.Frame):
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("News Aggregator")
-    if not os.path.exists(os.curdir + "/settings"):
-        os.mkdir(os.curdir + "/settings")
-    if not os.path.exists(os.curdir + "/assets/.cache"):
-        os.mkdir(os.curdir + "/assets/.cache")
+    if not os.path.exists(os.path.join(os.curdir, "settings")):
+        os.mkdir(os.path.join(os.curdir, "settings"))
+    if not os.path.exists(os.path.join(os.curdir, "assets", ".cache")):
+        os.mkdir(os.path.join(os.curdir, "assets", ".cache"))
     if not os.path.exists(THEME_FILE):
         with open(THEME_FILE, "wb") as f:
             pickle.dump("dark", f)

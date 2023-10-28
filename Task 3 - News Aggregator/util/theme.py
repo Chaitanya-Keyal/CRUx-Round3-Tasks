@@ -2,8 +2,8 @@ import os
 import pickle
 
 
-ASSET = os.curdir + "/assets/theme"
-THEME_FILE = os.curdir + "/settings/theme.bin"
+ASSET = os.path.join(os.curdir, "assets", "theme")
+THEME_FILE = os.path.join(os.curdir, "settings", "theme.bin")
 
 
 class Theme:
