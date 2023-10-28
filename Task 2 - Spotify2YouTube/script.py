@@ -70,13 +70,11 @@ def convert_yt_spotify():
         print("\nAdding songs to Spotify playlist...")
         uris = []
         for item in playlist_items:
-            uris.append(
-                spotify.get_song_uri(
-                    spotify.get_access_token(), item["title"], item["artist"]
-                )
+            uri = spotify.get_song_uri(
+                spotify.get_access_token(), item["title"], item["artist"]
             )
-        if None in uris:
-            uris.remove(None)
+            if uri:
+                uris.append(uri)
         spotify.add_to_playlist(spotify.get_access_token(), spotify_playlist_id, uris)
         print("\nDone!")
     else:

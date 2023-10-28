@@ -124,7 +124,11 @@ def get_playlist_items(access_token, playlist_id, limit=10):
         params={"limit": limit},
     )
     items = [
-        {"title": item["track"]["name"], "artist": item["track"]["artists"][0]["name"]}
+        {
+            "title": item["track"]["name"],
+            "artist": item["track"]["artists"][0]["name"],
+            "uri": item["track"]["uri"],
+        }
         for item in r["items"]
     ]
     if not r["next"]:
@@ -140,6 +144,7 @@ def get_playlist_items(access_token, playlist_id, limit=10):
                 {
                     "title": item["track"]["name"],
                     "artist": item["track"]["artists"][0]["name"],
+                    "uri": item["track"]["uri"],
                 }
                 for item in r["items"]
             ]
@@ -200,8 +205,8 @@ def add_to_playlist(access_token, playlist_id, uris):
     # check if song already exists in playlist
     playlist_items = get_playlist_items(access_token, playlist_id)
     for item in playlist_items:
-        if item["track"]["uri"] in uris:
-            uris.remove(item["track"]["uri"])
+        if item["uri"] in uris:
+            uris.remove(item["uri"])
     if not uris:
         print("No new songs to add")
         return
@@ -233,6 +238,7 @@ def get_new_liked_songs(access_token):
         songs (list): List of songs [(name, artist)]
     """
     print("\nGetting new liked songs...")
+    print("This may take a while...")
     now = datetime.datetime.now(tz=datetime.timezone.utc)
     if os.path.exists(os.path.join("spotify", "liked_timestamps.json")):
         with open(os.path.join("spotify", "liked_timestamps.json"), "r") as f:
