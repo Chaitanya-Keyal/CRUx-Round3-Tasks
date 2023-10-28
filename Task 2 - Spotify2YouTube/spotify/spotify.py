@@ -278,7 +278,6 @@ def get_song_uri(access_token, name, artist):
     Returns:
         uri (str): Song URI
     """
-    tried_both = False
     r = spotify_api_request(
         BASE_API_URL + "/v1/search",
         access_token,
@@ -291,13 +290,20 @@ def get_song_uri(access_token, name, artist):
     try:
         return r["tracks"]["items"][0]["uri"]
     except IndexError:
-        if tried_both:
+        r = spotify_api_request(
+            BASE_API_URL + "/v1/search",
+            access_token,
+            params={
+                "q": f"track:{artist} artist:{name}",
+                "type": "track",
+                "limit": 1,
+            },
+        )
+        try:
+            return r["tracks"]["items"][0]["uri"]
+        except IndexError:
             print(f"Song not found: {name} by {artist}")
             return None
-        else:
-            name, artist = artist, name
-            tried_both = True
-            return get_song_uri(access_token, name, artist)
 
 
 def search_song(access_token):  # NOTE: This function is not used in the script

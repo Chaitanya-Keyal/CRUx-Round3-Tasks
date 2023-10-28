@@ -35,7 +35,7 @@ def get_creds():
             creds.refresh(Request())  # Refreshes the token if it is expired
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                os.path.join("youtube", "token.json"), SCOPES
+                os.path.join("youtube", "credentials.json"), SCOPES
             )  # Gets the user to login and authorise the app
             creds = flow.run_local_server(port=0)
         with open(os.path.join("youtube", "token.json"), "w") as token:
@@ -176,6 +176,7 @@ def get_playlist_items(youtube, playlist_id):
     videos = []
 
     def get_title_artist(s):
+        title, artist = s, ""
         try:
             if " - " in s:
                 title = s.split(" - ")[1]
@@ -191,9 +192,9 @@ def get_playlist_items(youtube, playlist_id):
                 elif " [" in title:
                     title = title.split(" [")[0]
                 artist = s.split(" | ")[1]
-            return title, artist
         except IndexError:
-            return s, ""
+            pass
+        return title, artist
 
     for video in playlist_items_response["items"]:
         title, artist = get_title_artist(video["snippet"]["title"])
