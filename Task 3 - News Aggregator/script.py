@@ -108,7 +108,7 @@ class NewsAggregator(tk.Toplevel):
         )
         self.minsize(self.screen_width, self.screen_height)
 
-        self.notebook = ttk.Notebook(self)
+        self.notebook = ttk.Notebook(self, style="TNotebook")
         self.notebook.place(relx=0, rely=0, anchor="nw", relheight=1, relwidth=1)
         self.notebook.enable_traversal()
 
@@ -118,7 +118,10 @@ class NewsAggregator(tk.Toplevel):
             while True:
                 for topic in self.queue:
                     print(f"Loading {topic} Feed")
-                    self.queue.remove(topic)
+                    try:
+                        self.queue.remove(topic)
+                    except ValueError:
+                        pass
                     self.loaded_once[topic] = True
                     self.show_feed(topic)
                     self.loading_labels[topic].destroy()
@@ -195,7 +198,7 @@ class NewsAggregator(tk.Toplevel):
             compound="left",
             command=self.account_tab,
         )
-        self.acc_button.place(relx=0.99, rely=0.07, anchor="e")
+        self.acc_button.place(relx=0.99, rely=0.09, anchor="e")
         self.acc_frame = ttk.Frame()
         self.acc_frame.destroy()
 
@@ -240,7 +243,7 @@ class NewsAggregator(tk.Toplevel):
 
             self.bind("<Button-1>", clicked, add="+")
             self.acc_frame = ttk.Frame(self, style="Card.TFrame", padding=4)
-            self.acc_frame.place(relx=0.99, rely=0.1, anchor="ne")
+            self.acc_frame.place(relx=0.99, rely=0.12, anchor="ne")
 
             self.log_out_button = ttk.Button(
                 self.acc_frame, text="Log Out", style="12.TButton", command=self.log_out
@@ -647,7 +650,7 @@ class NewsAggregator(tk.Toplevel):
 
     # endregion
 
-    def search_bar(self):
+    def search_bar(self):  # TODO: Search Bar
         self.search_icon = ImageTk.PhotoImage(
             Image.open(os.path.join(ASSETS, "search.png")).resize(
                 (20, 20), Image.Resampling.LANCZOS
@@ -723,6 +726,34 @@ class NewsAggregator(tk.Toplevel):
         root.destroy()
 
 
+class Article:
+    def __init__(self, article_dict: dict):
+        self.link = article_dict["link"]
+        self.title = article_dict["title"]
+        self.image = article_dict["image"]
+        try:
+            self.tk_image = ImageTk.PhotoImage(
+                Image.open(
+                    BytesIO(
+                        requests.get(
+                            self.image,
+                            headers={
+                                "Referer": "https://www.google.com/",
+                                "User-Agent": "Mozilla/5.0",
+                            },
+                        ).content
+                    )
+                ).resize((250, 175), Image.Resampling.LANCZOS)
+            )
+        except:
+            self.tk_image = ImageTk.PhotoImage(
+                Image.open(os.path.join(ASSETS, "logo.png")).resize(
+                    (250, 175), Image.Resampling.LANCZOS
+                )
+            )
+            self.image = None
+
+
 class Feed:
     def __init__(self, topic, username):
         self.articles = []
@@ -754,34 +785,6 @@ class Feed:
                 self.articles.append(Article(j))
 
 
-class Article:
-    def __init__(self, article_dict: dict):
-        self.link = article_dict["link"]
-        self.title = article_dict["title"]
-        self.image = article_dict["image"]
-        try:
-            self.tk_image = ImageTk.PhotoImage(
-                Image.open(
-                    BytesIO(
-                        requests.get(
-                            self.image,
-                            headers={
-                                "Referer": "https://www.google.com/",
-                                "User-Agent": "Mozilla/5.0",
-                            },
-                        ).content
-                    )
-                ).resize((200, 150), Image.Resampling.LANCZOS)
-            )
-        except:
-            self.tk_image = ImageTk.PhotoImage(
-                Image.open(os.path.join(ASSETS, "logo.png")).resize(
-                    (225, 150), Image.Resampling.LANCZOS
-                )
-            )
-            self.image = None
-
-
 class ArticleFrame(ttk.Frame):
     def __init__(self, master, article: Article, username):
         super().__init__(master, style="Card.TFrame", padding=4)
@@ -800,13 +803,20 @@ class ArticleFrame(ttk.Frame):
             image=self.image,
             compound="top",
             font=("rockwell", 13),
-            wraplength=200,
+            wraplength=250,
             justify="center",
+            anchor="n",
             cursor="hand2",
         )
         self.label.place(relx=0.5, rely=0.5, relheight=1, relwidth=1, anchor="center")
         self.label.bind("<Button-1>", lambda a: webbrowser.open(self.article.link))
         self.save_unsave()
+
+    def remove_html_tags(self, text):
+        """Remove html tags from a string"""
+
+        clean = re.compile("<.*?>")
+        return re.sub(clean, "", text)
 
     def save_unsave(self):
         self.save_image = ImageTk.PhotoImage(
@@ -840,28 +850,22 @@ class ArticleFrame(ttk.Frame):
 
         if db.is_saved(self.username, self.article.link):
             self.save_button.place_forget()
-            self.unsave_button.place(relx=0.95, rely=0.05, anchor="ne")
+            self.unsave_button.place(relx=0.975, rely=0.025, anchor="ne")
         else:
             self.unsave_button.place_forget()
-            self.save_button.place(relx=0.95, rely=0.05, anchor="ne")
-
-    def remove_html_tags(self, text):
-        """Remove html tags from a string"""
-
-        clean = re.compile("<.*?>")
-        return re.sub(clean, "", text)
+            self.save_button.place(relx=0.975, rely=0.025, anchor="ne")
 
     def save_article(self):
         db.save_article(
             self.username, self.article.title, self.article.link, self.article.image
         )
         self.save_button.place_forget()
-        self.unsave_button.place(relx=0.95, rely=0.05, anchor="ne")
+        self.unsave_button.place(relx=0.975, rely=0.025, anchor="ne")
 
     def unsave_article(self):
         db.unsave_article(self.username, self.article.link)
         self.unsave_button.place_forget()
-        self.save_button.place(relx=0.95, rely=0.05, anchor="ne")
+        self.save_button.place(relx=0.975, rely=0.025, anchor="ne")
 
         # Remove from Saved Tab
         notebook = self.master.master.master.master.master
@@ -882,8 +886,8 @@ class FeedFrame(ScrollableFrame):
         for i, j in enumerate(self.article_frames):
             j.place(
                 height=250,
-                relwidth=0.22,
-                relx=(i % 4) * 0.25,
+                relwidth=0.2475,
+                relx=0.0025 + (i % 4) * 0.25,
                 y=(i // 4) * 255,
                 anchor="nw",
             )
@@ -1111,6 +1115,7 @@ class Register(tk.Frame):
         tk.Label(
             self,
             text="Welcome to the News Aggregator!\nPlease Enter your Details to Create an Account:",
+            font=("rockwell", 10),
         ).place(relx=0.5, rely=0.1, anchor="center")
         self.uname = tk.StringVar()
         self.pwd = tk.StringVar()
@@ -1371,10 +1376,12 @@ class Register(tk.Frame):
 if __name__ == "__main__":
     root = tk.Tk()
     root.title("News Aggregator")
+
     if not os.path.exists(os.path.join(os.curdir, "settings")):
         os.mkdir(os.path.join(os.curdir, "settings"))
     if not os.path.exists(os.path.join(os.curdir, "assets", ".cache")):
         os.mkdir(os.path.join(os.curdir, "assets", ".cache"))
+
     if not os.path.exists(THEME_FILE):
         with open(THEME_FILE, "wb") as f:
             pickle.dump("dark", f)

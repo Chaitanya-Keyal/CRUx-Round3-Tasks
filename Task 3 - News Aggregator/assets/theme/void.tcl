@@ -542,7 +542,7 @@ proc init {mode path} {
             image [list $I(tab-disabled) \
                 selected $I(tab-basic) \
                 active $I(tab-hover) \
-            ] -border 5 -padding {14 4}
+            ] -border 5 -padding {20 10}
 
         # Treeview
         ttk::style element create Treeview.field image $I(card) \
@@ -595,7 +595,7 @@ proc set_theme {mode} {
         -insertcolor $colors(-fg) \
         -insertwidth 1 \
         -fieldbackground $colors(-bg) \
-        -font {"Rockwell" 10} \
+        -font {"Rockwell" 11} \
         -borderwidth 1 \
         -relief flat
 

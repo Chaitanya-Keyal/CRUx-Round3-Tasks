@@ -4,9 +4,11 @@ A tkinter GUI program to aggregate news from various sources.
 
 ### Features:
 - Login System
-- Search for articles
+- News feed for a topic from various sources
 - Save articles to read later
-- Select favourite topics for a news feed
+- Choose favourite topics
+- Dark mode using a custom `ttk` theme
+
 
 ### Usage:
 - [Install MySQL](https://dev.mysql.com/doc/refman/8.0/en/installing.html)
