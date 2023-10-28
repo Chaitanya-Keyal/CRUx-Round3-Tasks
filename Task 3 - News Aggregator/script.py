@@ -205,7 +205,7 @@ class NewsAggregator(tk.Toplevel):
             compound="left",
             command=self.account_tab,
         )
-        self.acc_button.place(relx=0.99, rely=0.09, anchor="e")
+        self.acc_button.place(relx=0.99, rely=0.085, anchor="e")
         self.acc_frame = ttk.Frame()
         self.acc_frame.destroy()
 
@@ -758,10 +758,13 @@ class NewsAggregator(tk.Toplevel):
             relx=0.01, rely=0.07, relheight=0.9, relwidth=0.98
         )
 
-        self.feed_frames[topic] = FeedFrame(self.tabs[topic], self.articles, self.name)
-        self.feed_frames[topic].place(
-            relx=0.01, rely=0.07, relheight=0.9, relwidth=0.98
-        )
+        if self.articles:
+            self.feed_frames[topic] = FeedFrame(
+                self.tabs[topic], self.articles, self.name
+            )
+            self.feed_frames[topic].place(
+                relx=0.01, rely=0.07, relheight=0.9, relwidth=0.98
+            )
 
         self.loading_labels[topic].destroy()
 
@@ -922,7 +925,13 @@ class ArticleFrame(ttk.Frame):
             cursor="hand2",
         )
         self.label.place(relx=0.5, rely=0.5, relheight=1, relwidth=1, anchor="center")
-        self.label.bind("<Button-1>", lambda a: webbrowser.open(self.article.link))
+
+        def open_link():
+            self.label.configure(cursor="watch")
+            webbrowser.open(self.article.link)
+            self.label.configure(cursor="hand2")
+
+        self.label.bind("<Button-1>", lambda a: open_link())
         self.save_unsave()
 
     def remove_html_tags(self, text):
@@ -1494,6 +1503,9 @@ if __name__ == "__main__":
         os.mkdir(os.path.join(os.curdir, "settings"))
     if not os.path.exists(os.path.join(os.curdir, "assets", ".cache")):
         os.mkdir(os.path.join(os.curdir, "assets", ".cache"))
+
+    if not os.path.exists(os.path.join(os.curdir, "pfp")):
+        os.mkdir(os.path.join(os.curdir, "pfp"))
 
     if not os.path.exists(THEME_FILE):
         with open(THEME_FILE, "wb") as f:

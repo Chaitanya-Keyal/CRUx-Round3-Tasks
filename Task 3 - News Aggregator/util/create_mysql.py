@@ -1,6 +1,11 @@
+import json
+
 import mysql.connector as msc
 
-password = input("MySQL Password: ")
+f = open("credentials.json", "r")
+password = json.load(f)["password"]
+f.close()
+
 db = msc.connect(
     host="localhost",
     username="root",
