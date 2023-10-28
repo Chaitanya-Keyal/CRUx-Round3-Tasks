@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 import secrets
 import threading
 
@@ -15,7 +16,7 @@ log.setLevel(logging.ERROR)
 
 
 # Spotify app credentials
-f = open("spotify/credentials.json", "r")
+f = open(os.path.join("spotify", "credentials.json"), "r")
 spotify_credentials = json.load(f)
 client_id = spotify_credentials["client_id"]
 client_secret = spotify_credentials["client_secret"]
@@ -77,7 +78,7 @@ def callback():
         if r.status_code != 200:
             raise Exception(f"Status code: {r.status_code}, {r.text}")
         token = r.json()
-        with open("spotify/token.json", "w") as f:
+        with open(os.path.join("spotify", "token.json"), "w") as f:
             json.dump(token, f)
         auth_event.set()
         return "Spotify Authorisation Successful. You can close this tab and return to the application."
@@ -106,7 +107,7 @@ def get_access_token():
         access_token (str): Access token
     """
     token = {}
-    with open("spotify/token.json", "r+") as f:
+    with open(os.path.join("spotify", "token.json"), "r+") as f:
         token = json.load(f)
         r = requests.get(
             f"{BASE_API_URL}/v1/me",

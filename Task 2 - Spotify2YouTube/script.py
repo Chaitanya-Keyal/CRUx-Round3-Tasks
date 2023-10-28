@@ -168,7 +168,7 @@ def main():
 
 
 if __name__ == "__main__":
-    if not os.path.exists("spotify/token.json"):
+    if not os.path.exists(os.path.join("spotify", "token.json")):
         spotify.authorise()
         print()
     main()

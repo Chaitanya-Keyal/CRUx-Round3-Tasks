@@ -234,11 +234,11 @@ def get_new_liked_songs(access_token):
     """
     print("\nGetting new liked songs...")
     now = datetime.datetime.now(tz=datetime.timezone.utc)
-    if os.path.exists("spotify/liked_timestamps.json"):
-        with open("spotify/liked_timestamps.json", "r") as f:
+    if os.path.exists(os.path.join("spotify", "liked_timestamps.json")):
+        with open(os.path.join("spotify", "liked_timestamps.json"), "r") as f:
             last_checked = json.load(f)[get_user_details(access_token)["id"]]
     else:
-        with open("spotify/liked_timestamps.json", "w") as f:
+        with open(os.path.join("spotify", "liked_timestamps.json"), "w") as f:
             json.dump({}, f)
         last_checked = (now - datetime.timedelta(days=7)).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -258,7 +258,7 @@ def get_new_liked_songs(access_token):
                     songs.append(
                         (item["track"]["name"], item["track"]["artists"][0]["name"])
                     )
-    with open("spotify/liked_timestamps.json", "r+") as f:
+    with open(os.path.join("spotify", "liked_timestamps.json"), "r+") as f:
         d = json.load(f)
         d[get_user_details(access_token)["id"]] = now.strftime("%Y-%m-%dT%H:%M:%SZ")
         f.seek(0)

@@ -26,17 +26,19 @@ def get_creds():
         google.oauth2.credentials.Credentials: YouTube API credentials
     """
     creds = None
-    if os.path.exists("youtube/token.json"):
-        creds = Credentials.from_authorized_user_file("youtube/token.json", SCOPES)
+    if os.path.exists(os.path.join("youtube", "token.json")):
+        creds = Credentials.from_authorized_user_file(
+            os.path.join("youtube", "token.json"), SCOPES
+        )
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())  # Refreshes the token if it is expired
         else:
             flow = InstalledAppFlow.from_client_secrets_file(
-                "youtube/credentials.json", SCOPES
+                os.path.join("youtube", "token.json"), SCOPES
             )  # Gets the user to login and authorise the app
             creds = flow.run_local_server(port=0)
-        with open("youtube/token.json", "w") as token:
+        with open(os.path.join("youtube", "token.json"), "w") as token:
             token.write(creds.to_json())
     return creds
 

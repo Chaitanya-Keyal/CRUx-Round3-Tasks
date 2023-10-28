@@ -112,6 +112,11 @@ class NewsAggregator(tk.Toplevel):
         self.notebook.place(relx=0, rely=0, anchor="nw", relheight=1, relwidth=1)
         self.notebook.enable_traversal()
 
+        self.fav_topics = db.get_fav_topics(self.name)
+        if not self.fav_topics:
+            self.fav_topics = random.sample(list(RSS_FEEDS.keys()), 3)
+            db.update_topics(self.name, self.fav_topics)
+
         self.queue = []
 
         def load_queue():
@@ -133,7 +138,9 @@ class NewsAggregator(tk.Toplevel):
                     text="Loading...",
                     font=("rockwell", 16),
                 )
-                self.loading_labels[topic].place(relx=0.5, rely=0.03, anchor="center")
+                self.loading_labels[topic].place(
+                    relx=0.5, rely=0.03, anchor="center", relwidth=0.3, relheight=0.07
+                )
 
                 if topic == "saved":
                     print("Loading saved Feed")
@@ -690,6 +697,52 @@ class NewsAggregator(tk.Toplevel):
             "<FocusOut>", lambda a: self.search_entry.select_range(0, 0)
         )
 
+    def modify_fav_topics(self):
+        self.select_window = tk.Toplevel(self)
+        self.select_window.title("Edit Favourite Topics")
+        self.select_window.geometry(
+            f"{self.screen_width//3}x{self.screen_width//6}+{self.x_coord+self.screen_width//3}+{self.y_coord+self.screen_height//3}"
+        )
+        self.select_window.grab_set()
+        self.select_window.focus_set()
+        self.select_window.protocol("WM_DELETE_WINDOW", self.select_window.destroy)
+        self.select_window.bind("<Escape>", lambda a: self.select_window.destroy())
+        self.select_window.transient(self)
+
+        def change_favs(topic):
+            if self.check_vars[topic].get() and topic not in self.fav_topics:
+                self.fav_topics.append(topic)
+            elif not self.check_vars[topic].get() and topic in self.fav_topics:
+                self.fav_topics.remove(topic)
+
+        self.check_buttons = {i: None for i in RSS_FEEDS}
+        self.check_vars = {
+            i: tk.BooleanVar(value=i in self.fav_topics) for i in RSS_FEEDS
+        }
+        for c, i in enumerate(RSS_FEEDS.keys()):
+            self.check_buttons[i] = ttk.Checkbutton(
+                self.select_window,
+                text=i.title(),
+                style="12.TCheckbutton",
+                variable=self.check_vars[i],
+                command=lambda_func(change_favs, i),
+            )
+
+            self.check_buttons[i].grid(
+                row=c // 3, column=c % 3, sticky="nsew", padx=10, pady=5
+            )
+
+        def update_topics():
+            db.update_topics(self.name, self.fav_topics)
+            self.select_window.destroy()
+
+        ttk.Button(
+            self.select_window,
+            text="Save",
+            style="12.TButton",
+            command=update_topics,
+        ).grid(row=3, column=2, sticky="nsew", pady=5)
+
     def show_feed(self, topic="favorites"):
         self.articles = Feed(topic, self.name).articles
         self.feed_frames[topic].destroy()
@@ -711,6 +764,66 @@ class NewsAggregator(tk.Toplevel):
         )
 
         self.loading_labels[topic].destroy()
+
+        if topic == "favorites":
+            self.fav_button = ttk.Button(
+                self.tabs[topic],
+                text="Manage Favourites",
+                style="12.TButton",
+                command=self.modify_fav_topics,
+            )
+            self.fav_button.place(relx=0.5, rely=0.03, anchor="center")
+        elif topic != "saved":
+            self.favorite_image = ImageTk.PhotoImage(
+                Image.open(os.path.join(ASSETS, "favorite.png")).resize(
+                    (20, 20), Image.Resampling.LANCZOS
+                )
+            )
+            self.unfavorite_image = ImageTk.PhotoImage(
+                Image.open(os.path.join(ASSETS, "unfavorite.png")).resize(
+                    (20, 20), Image.Resampling.LANCZOS
+                )
+            )
+
+            def fav_unfav(topic, fav=True):
+                if fav:
+                    db.save_topic(self.name, topic)
+                    self.favorite_button.place_forget()
+                    self.unfavorite_button.place(relx=0.5, rely=0.03, anchor="center")
+                else:
+                    db.unsave_topic(self.name, topic)
+                    self.unfavorite_button.place_forget()
+                    self.favorite_button.place(relx=0.5, rely=0.03, anchor="center")
+
+                self.fav_topics = db.get_fav_topics(self.name)
+
+            self.favorite_button = tk.Button(
+                self.tabs[topic],
+                image=self.favorite_image,
+                text=topic.title() + "  ",
+                font=("rockwell", 16),
+                compound="right",
+                highlightthickness=0,
+                cursor="hand2",
+                border=0,
+                command=lambda_func(fav_unfav, topic, True),
+            )
+            self.unfavorite_button = tk.Button(
+                self.tabs[topic],
+                image=self.unfavorite_image,
+                text=topic.title() + "  ",
+                font=("rockwell", 16),
+                compound="right",
+                highlightthickness=0,
+                cursor="hand2",
+                border=0,
+                command=lambda_func(fav_unfav, topic, False),
+            )
+
+            if topic in self.fav_topics:
+                self.unfavorite_button.place(relx=0.5, rely=0.03, anchor="center")
+            else:
+                self.favorite_button.place(relx=0.5, rely=0.03, anchor="center")
 
         # rebind scroll wheel to active tab
         try:
@@ -848,7 +961,7 @@ class ArticleFrame(ttk.Frame):
             command=self.unsave_article,
         )
 
-        if db.is_saved(self.username, self.article.link):
+        if db.is_saved_article(self.username, self.article.link):
             self.save_button.place_forget()
             self.unsave_button.place(relx=0.975, rely=0.025, anchor="ne")
         else:

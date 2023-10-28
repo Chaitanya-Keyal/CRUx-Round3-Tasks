@@ -297,7 +297,7 @@ def unsave_article(username, link):
     return "Success"
 
 
-def is_saved(username, link):
+def is_saved_article(username, link):
     """
     Checks if the article is saved for the user
 
@@ -336,29 +336,76 @@ def get_saved_articles(username):
 # region Topics
 
 
-def update_saved_topics(username, topics):
+def update_topics(username, topics):
     """
-    Updates the saved topics for the user
+    Updates the topics for the user
 
     Args:
         username (str): Username
-        topic (list): List of topics (str)
+        topics (list): List of topics
 
     Returns:
         str: Success or Error message
     """
+    db.data_change(
+        f"DELETE FROM fav_topics WHERE user_id=(SELECT id FROM users WHERE username='{username}')"
+    )
     for topic in topics:
         db.data_change(
             f'INSERT INTO fav_topics (user_id, topic) VALUES ((SELECT id FROM users WHERE username="{username}"), "{topic}")'
         )
-
-    r = get_fav_topics(username)
-    for i in r:
-        if i not in topics:
-            db.data_change(
-                f'DELETE FROM fav_topics WHERE user_id=(SELECT id FROM users WHERE username="{username}") AND topic="{i}"'
-            )
     return "Success"
+
+
+def save_topic(username, topic):
+    """
+    Adds the saved topic for the user
+
+    Args:
+        username (str): Username
+        topic (str): Topic to be saved
+
+    Returns:
+        str: Success or Error message
+    """
+    db.data_change(
+        f'INSERT INTO fav_topics (user_id, topic) VALUES ((SELECT id FROM users WHERE username="{username}"), "{topic}")'
+    )
+    return "Success"
+
+
+def unsave_topic(username, topic):
+    """
+    Deletes the saved topic for the user
+
+    Args:
+        username (str): Username
+        topic (str): Topic to be deleted
+
+    Returns:
+        str: Success or Error message
+    """
+    db.data_change(
+        f'DELETE FROM fav_topics WHERE user_id=(SELECT id FROM users WHERE username="{username}") AND topic="{topic}"'
+    )
+    return "Success"
+
+
+def is_saved_topic(username, topic):
+    """
+    Checks if the topic is saved for the user
+
+    Args:
+        username (str): Username
+        topic (str): Topic to be checked
+
+    Returns:
+        bool: True if the topic is saved, False otherwise
+    """
+    res = db.execute(
+        f'SELECT * FROM fav_topics WHERE user_id=(SELECT id FROM users WHERE username="{username}") AND topic="{topic}"'
+    )
+    return len(res) > 0
 
 
 def get_fav_topics(username):
