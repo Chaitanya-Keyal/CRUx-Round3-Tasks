@@ -29,7 +29,7 @@ def get_articles_from_rss(url, limit=15):
     """
     soup = get_soup(url)
     items = soup.find_all("item")
-    if items:
+    if len(items) > limit:
         items = random.sample(items, limit)
     else:
         print(url)
