@@ -479,6 +479,8 @@ def get_room_numbers(filepath, courses_enrolled, student_ID):
     Extracts room numbers for enrolled courses from the pdf
     **For Midsems 2023-24 Sem 1 PDF Only (idk they might just change format randomly)**
 
+    ** They did: Compres 2023-24 Sem 1 PDF is different **
+
     Args:
         filepath (str): Path to the seating arrangement pdf file
         courses_enrolled (list): List of courses enrolled (course IDs)
@@ -497,21 +499,37 @@ def get_room_numbers(filepath, courses_enrolled, student_ID):
     cur_course = ""
     for i in tables:
         for j in i:
-            if j[0].startswith("SEATING") or j[0].startswith("COURSE"):  # Skip headers
-                continue
-            if j[0] in courses_enrolled:  # If course is enrolled
-                cur_course = j[0]
-            elif j[0] != "":  # For courses with multiple rooms
-                cur_course = ""
-            if cur_course:
-                if j[4] == "ALL THE STUDENTS":
-                    room_numbers[cur_course] = j[3]
+            # if j[0].startswith("SEATING") or j[0].startswith("COURSE"):  # Skip headers
+            #     continue
+            # if j[0] in courses_enrolled:  # If course is enrolled
+            #     cur_course = j[0]
+            # elif j[0] != "":  # For courses with multiple rooms
+            #     cur_course = ""
+            # if cur_course:
+            #     if j[4] == "ALL THE STUDENTS":
+            #         room_numbers[cur_course] = j[3]
+            #         continue
+            #     else:
+            #         ids = j[4].split(" to ")
+            #         if ids[0] <= student_ID <= ids[1]:
+            #             room_numbers[cur_course] = j[3]
+            #             continue
+            try:
+                if j[0].startswith("COMPREHENSIVE") or j[0].startswith(
+                    "COURSE"
+                ):  # Skip headers
                     continue
-                else:
-                    ids = j[4].split(" to ")
+                if j[0] in courses_enrolled:  # If course is enrolled
+                    cur_course = j[0]
+                elif j[0] != "":  # For courses with multiple rooms
+                    cur_course = ""
+                if cur_course:
+                    ids = j[4].split(" to\n")
                     if ids[0] <= student_ID <= ids[1]:
                         room_numbers[cur_course] = j[3]
                         continue
+            except:
+                print(f"Error in PDF format for column:\n{j}")
 
     return room_numbers
 
