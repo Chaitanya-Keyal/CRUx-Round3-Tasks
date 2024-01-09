@@ -279,7 +279,7 @@ def add_exams(
         exams (list): List of exams
         exams_start_end_dates (dict): Start and end dates of midsems and compres
         custom (dict): Customisation dictionary
-        timetable_ID (int): Chrono timetable ID
+        timetable_ID: Chrono timetable ID
         student_ID (str): Student ID
     Returns:
         None
@@ -292,16 +292,16 @@ def add_exams(
             student_ID,
         )
     for i in exams:
-        # Error in Chrono's Data
-        if i.split("|")[0] == "CHEM F111":
-            i = i.replace("CHEM", "EEE")
-        elif i.split("|")[0] == "EEE F111":
-            i = i.replace("EEE", "CHEM")
-
         exam = {
             "summary": i.split("|")[0],
-            "start": {"dateTime": i.split("|")[2], "timeZone": "Asia/Kolkata"},
-            "end": {"dateTime": i.split("|")[3], "timeZone": "Asia/Kolkata"},
+            "start": {
+                "dateTime": i.split("|")[2].replace("2023", "2024"),
+                "timeZone": "Asia/Kolkata",
+            },
+            "end": {
+                "dateTime": i.split("|")[3].replace("2023", "2024"),
+                "timeZone": "Asia/Kolkata",
+            },
             "description": i.split("|")[1],
             "colorId": custom["exam_color_id"],
             "reminders": {
@@ -319,16 +319,16 @@ def add_exams(
     print("\nDeleting Classes during Exams...")
     del_events(
         service,
-        exams_start_end_dates["midsem_start_date"],
-        exams_start_end_dates["midsem_end_date"],
+        exams_start_end_dates["midsem_start_date"].replace("2023", "2024"),
+        exams_start_end_dates["midsem_end_date"].replace("2023", "2024"),
         excludeColorId=[custom["exam_color_id"]],
         onlyColorId=usable_colors + specified_colors,
         force=True,
     )
     del_events(
         service,
-        exams_start_end_dates["compre_start_date"],
-        exams_start_end_dates["compre_end_date"],
+        exams_start_end_dates["compre_start_date"].replace("2023", "2024"),
+        exams_start_end_dates["compre_end_date"].replace("2023", "2024"),
         excludeColorId=[custom["exam_color_id"]],
         onlyColorId=usable_colors + specified_colors,
         force=True,
@@ -349,8 +349,8 @@ def add_exam_rooms(service, room_numbers, examtype):
     exams_start_end_dates = get_exams_start_end_dates()
     events = get_events(
         service,
-        exams_start_end_dates[f"{examtype}_start_date"],
-        exams_start_end_dates[f"{examtype}_end_date"],
+        exams_start_end_dates[f"{examtype}_start_date"].replace("2023", "2024"),
+        exams_start_end_dates[f"{examtype}_end_date"].replace("2023", "2024"),
     )
     for event in events:
         if event["summary"] in room_numbers:
@@ -379,9 +379,7 @@ def get_exams_start_end_dates():
         dict: Start and end dates of midsems and compres
     """
     courses_details = {}
-    for i in json.loads(
-        requests.get(f"https://chrono.crux-bphc.com/backend/course").text
-    ):
+    for i in json.loads(requests.get(f"https://chrono.crux-bphc.com/api/course").text):
         courses_details[i["id"]] = i
 
     return {
@@ -449,14 +447,12 @@ def get_courses_enrolled(timetable_ID):
     Gets all courses enrolled in the given timetable
 
     Args:
-        timetable_ID (int): Chrono timetable ID
+        timetable_ID: Chrono timetable ID
     Returns:
         list: List of courses enrolled (course IDs)
     """
     timetable = json.loads(
-        requests.get(
-            f"https://chrono.crux-bphc.com/backend/timetable/{timetable_ID}"
-        ).text
+        requests.get(f"https://chrono.crux-bphc.com/api/timetable/{timetable_ID}").text
     )
 
     try:
@@ -477,9 +473,8 @@ def get_courses_enrolled(timetable_ID):
 def get_room_numbers(filepath, courses_enrolled, student_ID):
     """
     Extracts room numbers for enrolled courses from the pdf
-    **For Midsems 2023-24 Sem 1 PDF Only (idk they might just change format randomly)**
-
-    ** They did: Compres 2023-24 Sem 1 PDF is different **
+    
+    **No PDF available yet**
 
     Args:
         filepath (str): Path to the seating arrangement pdf file
@@ -499,21 +494,6 @@ def get_room_numbers(filepath, courses_enrolled, student_ID):
     cur_course = ""
     for i in tables:
         for j in i:
-            # if j[0].startswith("SEATING") or j[0].startswith("COURSE"):  # Skip headers
-            #     continue
-            # if j[0] in courses_enrolled:  # If course is enrolled
-            #     cur_course = j[0]
-            # elif j[0] != "":  # For courses with multiple rooms
-            #     cur_course = ""
-            # if cur_course:
-            #     if j[4] == "ALL THE STUDENTS":
-            #         room_numbers[cur_course] = j[3]
-            #         continue
-            #     else:
-            #         ids = j[4].split(" to ")
-            #         if ids[0] <= student_ID <= ids[1]:
-            #             room_numbers[cur_course] = j[3]
-            #             continue
             try:
                 if j[0].startswith("COMPREHENSIVE") or j[0].startswith(
                     "COURSE"
@@ -607,7 +587,7 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
 
     Args:
         service (googleapiclient.discovery.Resource): Google Calendar API service
-        timetable_ID (int): Chrono timetable ID
+        timetable_ID: Chrono timetable ID
         student_ID (str): Student ID
         start_date (str): Start date in the format YYYY-MM-DD
         end_date (str): End date in the format YYYY-MM-DD
@@ -617,9 +597,7 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
     # Found Chrono API endpoints by inspecting network traffic
     print("\nLoading Timetable...\n")
     timetable = json.loads(
-        requests.get(
-            f"https://chrono.crux-bphc.com/backend/timetable/{timetable_ID}"
-        ).text
+        requests.get(f"https://chrono.crux-bphc.com/api/timetable/{timetable_ID}").text
     )
 
     try:
@@ -631,21 +609,19 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
         exit()
 
     courses_details = {}
-    for i in json.loads(
-        requests.get(f"https://chrono.crux-bphc.com/backend/course").text
-    ):
+    for i in json.loads(requests.get(f"https://chrono.crux-bphc.com/api/course").text):
         courses_details[i["id"]] = i
 
     exams_start_end_dates = get_exams_start_end_dates()
 
-    def convert_slots_to_days_hr(slot: str) -> (str, str):
+    def convert_slots_to_days_hr(slot: (str, str)) -> (str, str):
         """
         Converts chrono's time slot format to google calendar's format
 
         Args:
-            slot (str): Slot in the format D:HH
+            slot (str, str): Chrono's time slot format (Day, Hour Number)
         Returns:
-            (str, str): (Day, Hour)
+            (str, str): (Day, Hour) in google calendar's format
         """
         days = {
             "M": "MO",
@@ -669,22 +645,26 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
             "10": "17:00:00",
             "11": "18:00:00",
         }
-        d, t = (
-            slot.split(":") if ":" in slot else ("".join(slot[:-1]), "".join(slot[-1]))
-        )
-        return (days[d], hours[t])
+        return (days[slot[0]], hours[slot[1]])
 
     types_dict = {"L": "Lecture", "T": "Tutorial", "P": "Practical"}
     classes = []
     for i in timetable["sections"]:
         timings = [
-            convert_slots_to_days_hr(j.split(":")[2] + j.split(":")[3])
+            convert_slots_to_days_hr((j.split(":")[2], j.split(":")[3]))
             for j in i["roomTime"]
         ]
         # Multiple hours for same course
         class_times = []
         for j in timings:
-            block_period = [k for k in timings if k[0] == j[0]]
+            block_period = [
+                k
+                for k in timings
+                if (
+                    k[0] == j[0]
+                    and abs(int(k[1].split(":")[0]) - int(j[1].split(":")[0])) <= 2
+                )
+            ]
             if len(block_period) > 1 and block_period not in class_times:
                 class_times.append(block_period)
             diff_hrs = [k for k in timings if k[1] == j[1]]
@@ -712,10 +692,11 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
     for i in classes:
         if i["location"] == "WS":  # QOL
             i["location"] = "Workshop"
-        elif i["location"] == "A222":  # Error in Chrono's Data
-            i["type"] = "Practical"
-            i["section"] = "P" + i["section"][1:]
-        elif i["location"] == "B124":  # Error in Chrono's Data
+        elif i["location"] in [
+            "A122",
+            "A222",
+            "B124",
+        ]:  # Change Lab Courses to Practical
             i["type"] = "Practical"
             i["section"] = "P" + i["section"][1:]
 
@@ -1007,7 +988,7 @@ def main(creds):
             continue
         break
 
-    timetable_ID = int(input("Enter timetable ID: "))
+    timetable_ID = input("Enter timetable ID: ")
 
     while True:
         print(
