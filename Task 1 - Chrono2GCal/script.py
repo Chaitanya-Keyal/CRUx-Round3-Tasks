@@ -473,7 +473,7 @@ def get_courses_enrolled(timetable_ID):
 def get_room_numbers(filepath, courses_enrolled, student_ID):
     """
     Extracts room numbers for enrolled courses from the pdf
-    
+
     **No PDF available yet**
 
     Args:
