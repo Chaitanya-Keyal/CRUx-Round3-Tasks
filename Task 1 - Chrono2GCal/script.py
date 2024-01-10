@@ -1003,7 +1003,11 @@ def main(creds):
         if choice == "1":
             start_date, end_date = input_dates()
             custom = initialise(service, timetable_ID, student_ID, start_date, end_date)
+            with open("customisation.json", "w") as f:
+                json.dump(custom, f, indent=4)
             del_classes_on_holidays(service, get_holidays("BITS_Calendar_23_24.pdf"))
+            print("\nDone.")
+            break
         elif choice == "2":
             while True:
                 print(
