@@ -3,6 +3,7 @@ import datetime
 import json
 import os
 import random
+from typing import Tuple
 
 import pdfplumber
 import requests
@@ -385,27 +386,27 @@ def get_exams_start_end_dates():
     return {
         "midsem_start_date": min(
             courses_details.values(),
-            key=lambda x: x["midsemStartTime"]
-            if x["midsemStartTime"]
-            else "9999-12-31T00:00:00Z",
+            key=lambda x: (
+                x["midsemStartTime"] if x["midsemStartTime"] else "9999-12-31T00:00:00Z"
+            ),
         )["midsemStartTime"].split("T")[0],
         "midsem_end_date": max(
             courses_details.values(),
-            key=lambda x: x["midsemEndTime"]
-            if x["midsemEndTime"]
-            else "0000-01-01T00:00:00Z",
+            key=lambda x: (
+                x["midsemEndTime"] if x["midsemEndTime"] else "0000-01-01T00:00:00Z"
+            ),
         )["midsemEndTime"].split("T")[0],
         "compre_start_date": min(
             courses_details.values(),
-            key=lambda x: x["compreStartTime"]
-            if x["compreStartTime"]
-            else "9999-12-31T00:00:00Z",
+            key=lambda x: (
+                x["compreStartTime"] if x["compreStartTime"] else "9999-12-31T00:00:00Z"
+            ),
         )["compreStartTime"].split("T")[0],
         "compre_end_date": max(
             courses_details.values(),
-            key=lambda x: x["compreEndTime"]
-            if x["compreEndTime"]
-            else "0000-01-01T00:00:00Z",
+            key=lambda x: (
+                x["compreEndTime"] if x["compreEndTime"] else "0000-01-01T00:00:00Z"
+            ),
         )["compreEndTime"].split("T")[0],
     }
 
@@ -474,7 +475,7 @@ def get_room_numbers(filepath, courses_enrolled, student_ID):
     """
     Extracts room numbers for enrolled courses from the pdf
 
-    **No PDF available yet**
+    **Compatible with Midsem 23-24 Sem 2**
 
     Args:
         filepath (str): Path to the seating arrangement pdf file
@@ -495,8 +496,15 @@ def get_room_numbers(filepath, courses_enrolled, student_ID):
     for i in tables:
         for j in i:
             try:
-                if j[0].startswith("COMPREHENSIVE") or j[0].startswith(
-                    "COURSE"
+                if any(
+                    [
+                        j[0].startswith(x)
+                        for x in [
+                            "BITS-PILANI HYDERABAD CAMPUS",
+                            "MID-SEMESTER",
+                            "COURSE",
+                        ]
+                    ]
                 ):  # Skip headers
                     continue
                 if j[0] in courses_enrolled:  # If course is enrolled
@@ -614,7 +622,7 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
 
     exams_start_end_dates = get_exams_start_end_dates()
 
-    def convert_slots_to_days_hr(slot: (str, str)) -> (str, str):
+    def convert_slots_to_days_hr(slot: Tuple[str, str]) -> Tuple[str, str]:
         """
         Converts chrono's time slot format to google calendar's format
 
@@ -679,9 +687,11 @@ def initialise(service, timetable_ID, student_ID, start_date, end_date):
                     "location": i["roomTime"][0].split(":")[1],
                     "days": list(set(days)),
                     "start": k[0][1],
-                    "end": k[0][1][:2] + ":50:00"
-                    if days.count(days[0]) == 1
-                    else str(int(k[0][1][:2]) + days.count(days[0]) - 1) + ":50:00",
+                    "end": (
+                        k[0][1][:2] + ":50:00"
+                        if days.count(days[0]) == 1
+                        else str(int(k[0][1][:2]) + days.count(days[0]) - 1) + ":50:00"
+                    ),
                     "section": i["type"] + str(i["number"]),
                     "instructors": i["instructors"],
                     "type": types_dict[i["type"]],
@@ -867,11 +877,11 @@ def customisation(classes):
                         if not 1 <= int(id) <= 11:
                             raise ValueError
                         custom["classes_color_ids"][
-                            "Lecture"
-                            if color == "1"
-                            else "Tutorial"
-                            if color == "2"
-                            else "Practical"
+                            (
+                                "Lecture"
+                                if color == "1"
+                                else "Tutorial" if color == "2" else "Practical"
+                            )
                         ] = id
                         print("Color changed")
                     except ValueError:
